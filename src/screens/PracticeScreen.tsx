@@ -1,0 +1,365 @@
+import React, { useState, useEffect } from 'react';
+import {
+  View,
+  Text,
+  StyleSheet,
+  TouchableOpacity,
+  FlatList,
+  ActivityIndicator,
+  Alert,
+} from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { useAuth } from '../hooks/useAuth';
+import { useProject } from '../hooks/useProject';
+import { useTextToSpeech } from '../hooks/useTextToSpeech';
+import { supabase } from '../lib/supabase';
+import type { PracticeSentence } from '../lib/types';
+
+type DifficultyFilter = 'all' | 'beginner' | 'intermediate' | 'advanced';
+
+const PracticeScreen: React.FC = () => {
+  const [difficultyFilter, setDifficultyFilter] = useState<DifficultyFilter>('all');
+  const [practiceSentences, setPracticeSentences] = useState<PracticeSentence[]>([]);
+  const [isGenerating, setIsGenerating] = useState(false);
+  const { user } = useAuth();
+  const { currentProject } = useProject(user);
+  const { speak, isPlaying, currentText } = useTextToSpeech();
+
+  useEffect(() => {
+    if (currentProject?.practiceSentences) {
+      setPracticeSentences(currentProject.practiceSentences);
+    }
+  }, [currentProject]);
+
+  const generateSentences = async () => {
+    if (!currentProject) return;
+
+    const vocabulary = currentProject.vocabulary ?? [];
+    const grammar = currentProject.grammar ?? [];
+    const detectedLanguage = currentProject.detectedLanguage ?? 'Unknown';
+
+    if (vocabulary.length === 0 || grammar.length === 0) {
+      Alert.alert('Not enough data', 'Generate vocabulary and grammar first, then try again.');
+      return;
+    }
+
+    setIsGenerating(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('generate-practice-sentences', {
+        body: { vocabulary, grammar, detectedLanguage, count: 10 },
+      });
+
+      if (error) throw error;
+
+      if (data?.sentences?.length > 0) {
+        setPracticeSentences(data.sentences);
+        Alert.alert('Success', `Created ${data.sentences.length} sentences for practice.`);
+      } else {
+        Alert.alert('No sentences', 'Try again or check if vocabulary and grammar are available.');
+      }
+    } catch (error: any) {
+      Alert.alert('Generation failed', error.message || 'Could not generate practice sentences');
+    } finally {
+      setIsGenerating(false);
+    }
+  };
+
+  const filteredSentences =
+    difficultyFilter === 'all'
+      ? practiceSentences
+      : practiceSentences.filter((s) => s.difficulty === difficultyFilter);
+
+  const getDifficultyColor = (difficulty: string) => {
+    switch (difficulty) {
+      case 'beginner':
+        return { bg: '#D1FAE5', text: '#065F46' };
+      case 'intermediate':
+        return { bg: '#FEF3C7', text: '#92400E' };
+      case 'advanced':
+        return { bg: '#FEE2E2', text: '#991B1B' };
+      default:
+        return { bg: '#F3F4F6', text: '#374151' };
+    }
+  };
+
+  if (!currentProject) {
+    return (
+      <SafeAreaView style={styles.container} edges={['bottom']}>
+        <View style={styles.emptyState}>
+          <Text style={styles.emptyIcon}>💬</Text>
+          <Text style={styles.emptyTitle}>No practice sentences</Text>
+          <Text style={styles.emptySubtitle}>Add a video first to generate practice content</Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
+  const renderSentence = ({ item }: { item: PracticeSentence }) => {
+    const colors = getDifficultyColor(item.difficulty);
+    const isCurrentlyPlaying = isPlaying && currentText === item.text;
+
+    return (
+      <View style={styles.sentenceCard}>
+        <View style={styles.sentenceRow}>
+          <TouchableOpacity
+            style={styles.audioButton}
+            onPress={() => speak(item.text)}
+          >
+            <Text style={[styles.audioIcon, isCurrentlyPlaying && styles.audioIconPlaying]}>
+              🔊
+            </Text>
+          </TouchableOpacity>
+          <View style={styles.sentenceContent}>
+            <Text style={styles.sentenceText}>{item.text}</Text>
+            <Text style={styles.translationText}>{item.translation}</Text>
+          </View>
+        </View>
+        <View style={styles.tagsRow}>
+          <View style={[styles.badge, { backgroundColor: colors.bg }]}>
+            <Text style={[styles.badgeText, { color: colors.text }]}>{item.difficulty}</Text>
+          </View>
+          {item.usedVocabulary?.slice(0, 3).map((word, i) => (
+            <View key={i} style={[styles.badge, { backgroundColor: '#F3F4F6' }]}>
+              <Text style={[styles.badgeText, { color: '#374151' }]}>{word}</Text>
+            </View>
+          ))}
+          {(item.usedVocabulary?.length || 0) > 3 && (
+            <View style={[styles.badge, { backgroundColor: '#F3F4F6' }]}>
+              <Text style={[styles.badgeText, { color: '#374151' }]}>
+                +{item.usedVocabulary.length - 3}
+              </Text>
+            </View>
+          )}
+        </View>
+      </View>
+    );
+  };
+
+  return (
+    <SafeAreaView style={styles.container} edges={['bottom']}>
+      {/* Header */}
+      <View style={styles.header}>
+        <Text style={styles.headerTitle}>Practice Sentences</Text>
+        <TouchableOpacity
+          style={styles.generateButton}
+          onPress={generateSentences}
+          disabled={isGenerating}
+        >
+          {isGenerating ? (
+            <ActivityIndicator size="small" color="#007AFF" />
+          ) : (
+            <Text style={styles.generateText}>↻ Generate</Text>
+          )}
+        </TouchableOpacity>
+      </View>
+
+      {/* Filter Bar */}
+      <View style={styles.filterBar}>
+        {(['all', 'beginner', 'intermediate', 'advanced'] as DifficultyFilter[]).map((level) => (
+          <TouchableOpacity
+            key={level}
+            style={[
+              styles.filterChip,
+              difficultyFilter === level && styles.filterChipActive,
+            ]}
+            onPress={() => setDifficultyFilter(level)}
+          >
+            <Text
+              style={[
+                styles.filterChipText,
+                difficultyFilter === level && styles.filterChipTextActive,
+              ]}
+            >
+              {level === 'all' ? `All (${practiceSentences.length})` : level.charAt(0).toUpperCase() + level.slice(1)}
+            </Text>
+          </TouchableOpacity>
+        ))}
+      </View>
+
+      {/* Sentences List */}
+      {filteredSentences.length === 0 ? (
+        <View style={styles.emptyState}>
+          <Text style={styles.emptyIcon}>📝</Text>
+          <Text style={styles.emptyTitle}>
+            {practiceSentences.length === 0 ? 'No practice sentences yet' : 'No sentences at this level'}
+          </Text>
+          {practiceSentences.length === 0 && (
+            <TouchableOpacity
+              style={styles.generateButtonLarge}
+              onPress={generateSentences}
+            >
+              <Text style={styles.generateButtonLargeText}>Generate Sentences</Text>
+            </TouchableOpacity>
+          )}
+        </View>
+      ) : (
+        <FlatList
+          data={filteredSentences}
+          keyExtractor={(_, i) => `s-${i}`}
+          renderItem={renderSentence}
+          contentContainerStyle={styles.listContent}
+        />
+      )}
+    </SafeAreaView>
+  );
+};
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: '#F2F2F7',
+  },
+  header: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+  },
+  headerTitle: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: '#000',
+  },
+  generateButton: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#C6C6C8',
+  },
+  generateText: {
+    fontSize: 14,
+    color: '#007AFF',
+    fontWeight: '500',
+  },
+  filterBar: {
+    flexDirection: 'row',
+    paddingHorizontal: 16,
+    paddingBottom: 12,
+    gap: 8,
+  },
+  filterChip: {
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 20,
+    backgroundColor: '#fff',
+    borderWidth: 1,
+    borderColor: '#E5E5EA',
+  },
+  filterChipActive: {
+    backgroundColor: '#007AFF',
+    borderColor: '#007AFF',
+  },
+  filterChipText: {
+    fontSize: 13,
+    color: '#3C3C43',
+    fontWeight: '500',
+  },
+  filterChipTextActive: {
+    color: '#fff',
+  },
+  listContent: {
+    padding: 16,
+    paddingTop: 4,
+  },
+  sentenceCard: {
+    backgroundColor: '#fff',
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 10,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.04,
+    shadowRadius: 3,
+    elevation: 1,
+  },
+  sentenceRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 12,
+    marginBottom: 12,
+  },
+  audioButton: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: '#F2F2F7',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 2,
+  },
+  audioIcon: {
+    fontSize: 16,
+  },
+  audioIconPlaying: {
+    opacity: 0.5,
+  },
+  sentenceContent: {
+    flex: 1,
+  },
+  sentenceText: {
+    fontSize: 16,
+    fontWeight: '500',
+    color: '#000',
+    marginBottom: 4,
+    lineHeight: 24,
+  },
+  translationText: {
+    fontSize: 14,
+    color: '#8E8E93',
+    fontStyle: 'italic',
+    lineHeight: 20,
+  },
+  tagsRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 6,
+  },
+  badge: {
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 8,
+  },
+  badgeText: {
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  emptyState: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 32,
+  },
+  emptyIcon: {
+    fontSize: 48,
+    marginBottom: 16,
+  },
+  emptyTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#3C3C43',
+    marginBottom: 8,
+    textAlign: 'center',
+  },
+  emptySubtitle: {
+    fontSize: 15,
+    color: '#8E8E93',
+    textAlign: 'center',
+    lineHeight: 22,
+  },
+  generateButtonLarge: {
+    marginTop: 16,
+    backgroundColor: '#007AFF',
+    paddingHorizontal: 24,
+    paddingVertical: 12,
+    borderRadius: 12,
+  },
+  generateButtonLargeText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+});
+
+export default PracticeScreen;

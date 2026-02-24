@@ -1,0 +1,309 @@
+import { useState, useRef, useCallback } from 'react';
+import { Alert } from 'react-native';
+import { supabase } from '../lib/supabase';
+import type { AppProject, GrammarItem, PracticeSentence, VocabularyItem } from '../lib/types';
+
+export const useVideoProcessing = () => {
+  const [isProcessing, setIsProcessing] = useState(false);
+  const [processingStep, setProcessingStep] = useState('');
+  const pollingIntervalsRef = useRef<Map<string, ReturnType<typeof setInterval>>>(new Map());
+
+  const extractVideoId = (url: string) => {
+    const match = url.match(/(?:youtube\.com\/watch\?v=|youtu\.be\/)([^&\n?#]+)/);
+    return match ? match[1] : null;
+  };
+
+  const fetchAvailableLanguages = async (videoId: string) => {
+    try {
+      const { data, error } = await supabase.functions.invoke('get-available-languages', {
+        body: { videoId },
+      });
+      if (error || !data?.success) return null;
+      return data.availableLanguages || [];
+    } catch {
+      return null;
+    }
+  };
+
+  const fetchTranscript = async (videoId: string, languageCode?: string) => {
+    try {
+      const { data, error } = await supabase.functions.invoke('extract-transcript', {
+        body: { videoId, languageCode },
+      });
+
+      if (data?.status === 'pending' && data?.jobId) {
+        return {
+          status: 'pending' as const,
+          jobId: data.jobId,
+          videoTitle: `Video Lesson - ${videoId}`,
+        };
+      }
+
+      if (data?.error && data.error.includes('Rate limit exceeded')) {
+        throw new Error('RATE_LIMIT_EXCEEDED');
+      }
+
+      if (!error && data?.success && data.transcript) {
+        return {
+          status: 'completed' as const,
+          transcript: data.transcript as string,
+          videoTitle: (data.videoTitle || `Video Lesson - ${videoId}`) as string,
+          captionsAvailable: (data.captionsAvailable || false) as boolean,
+        };
+      }
+
+      if (data?.error && data.error.includes('more than 50 words')) {
+        throw new Error(data.error);
+      }
+    } catch (err) {
+      if (err instanceof Error && err.message === 'RATE_LIMIT_EXCEEDED') throw err;
+    }
+
+    throw new Error('Could not extract transcript. Please ensure the video has captions available and try again.');
+  };
+
+  const analyzeContentWithAI = async (script: string) => {
+    try {
+      const { data, error } = await supabase.functions.invoke('analyze-content', {
+        body: { transcript: script },
+      });
+
+      if (error) throw error;
+
+      return {
+        vocabulary: (data.vocabulary || []) as VocabularyItem[],
+        grammar: (data.grammar || []) as GrammarItem[],
+        detectedLanguage: (data.detectedLanguage || 'Unknown') as string,
+      };
+    } catch (error) {
+      console.error('Failed to analyze content with AI:', error);
+      return { vocabulary: [], grammar: [], detectedLanguage: 'Unknown' };
+    }
+  };
+
+  const generatePracticeSentences = async (
+    vocabulary: VocabularyItem[],
+    grammar: GrammarItem[],
+    detectedLanguage: string
+  ): Promise<PracticeSentence[]> => {
+    try {
+      const { data, error } = await supabase.functions.invoke('generate-practice-sentences', {
+        body: { vocabulary, grammar, detectedLanguage, count: 10 },
+      });
+
+      if (error) return [];
+      if (data?.sentences && data.sentences.length > 0) return data.sentences;
+      return [];
+    } catch {
+      return [];
+    }
+  };
+
+  const completeProjectProcessing = async (
+    initialProject: AppProject,
+    transcript: string,
+    videoTitle: string,
+    onComplete: (project: AppProject) => void
+  ) => {
+    try {
+      const { vocabulary, grammar, detectedLanguage } = await analyzeContentWithAI(transcript);
+      const practiceSentences = await generatePracticeSentences(vocabulary, grammar, detectedLanguage);
+
+      const completedProject: AppProject = {
+        ...initialProject,
+        title: videoTitle,
+        script: transcript,
+        vocabulary,
+        grammar,
+        detectedLanguage,
+        practiceSentences,
+        status: 'completed',
+        jobId: undefined,
+        errorMessage: undefined,
+      };
+
+      // Update in database
+      await supabase
+        .from('projects')
+        .update({
+          title: videoTitle,
+          script: transcript,
+          vocabulary: vocabulary as any,
+          grammar: grammar as any,
+          practice_sentences: practiceSentences as any,
+          detected_language: detectedLanguage,
+          vocabulary_count: vocabulary.length,
+          grammar_count: grammar.length,
+          status: 'completed',
+          job_id: null,
+          error_message: null,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('job_id', initialProject.jobId)
+        .eq('user_id', initialProject.userId);
+
+      Alert.alert('Video ready!', `"${videoTitle}" is now ready for study.`);
+      onComplete(completedProject);
+    } catch (error) {
+      console.error('Failed to complete project processing:', error);
+    }
+  };
+
+  const startJobPolling = (
+    jobId: string,
+    videoId: string,
+    initialProject: AppProject,
+    onComplete: (project: AppProject) => void
+  ) => {
+    const pollInterval = setInterval(async () => {
+      try {
+        const { data, error } = await supabase.functions.invoke('poll-transcript-job', {
+          body: { jobId, videoId },
+        });
+
+        if (error) return;
+
+        if (data.status === 'completed') {
+          clearInterval(pollInterval);
+          pollingIntervalsRef.current.delete(jobId);
+          await completeProjectProcessing(initialProject, data.transcript, data.videoTitle, onComplete);
+        } else if (data.status === 'failed') {
+          clearInterval(pollInterval);
+          pollingIntervalsRef.current.delete(jobId);
+          Alert.alert('Generation failed', data.error);
+        }
+      } catch (error) {
+        console.error('Polling error:', error);
+      }
+    }, 60000);
+
+    pollingIntervalsRef.current.set(jobId, pollInterval);
+  };
+
+  const processVideo = async (
+    videoId: string,
+    languageCode?: string,
+    selectedLanguageName?: string,
+    userId?: string,
+    onProjectUpdate?: (project: AppProject) => void
+  ): Promise<AppProject> => {
+    setIsProcessing(true);
+    setProcessingStep('Extracting transcript...');
+
+    try {
+      const result = await fetchTranscript(videoId, languageCode);
+
+      if (result.status === 'pending' && 'jobId' in result && result.jobId) {
+        const pendingProject: AppProject = {
+          id: Date.now(),
+          title: result.videoTitle,
+          url: `https://www.youtube.com/watch?v=${videoId}`,
+          script: '',
+          vocabulary: [],
+          grammar: [],
+          detectedLanguage: selectedLanguageName || 'Unknown',
+          practiceSentences: [],
+          status: 'pending',
+          jobId: result.jobId,
+          userId,
+        };
+
+        Alert.alert('AI generation started', 'Generating the script by AI. You can keep pulling other videos.');
+
+        if (onProjectUpdate) {
+          startJobPolling(result.jobId, videoId, pendingProject, onProjectUpdate);
+        }
+
+        setIsProcessing(false);
+        setProcessingStep('');
+        return pendingProject;
+      }
+
+      const { transcript, videoTitle } = result as { transcript: string; videoTitle: string };
+
+      setProcessingStep('Analyzing content with AI...');
+      const { vocabulary, grammar, detectedLanguage: aiDetectedLang } = await analyzeContentWithAI(transcript);
+
+      const finalLanguage = selectedLanguageName || aiDetectedLang;
+
+      let practiceSentences: PracticeSentence[] = [];
+      if (vocabulary.length > 0 && grammar.length > 0) {
+        setProcessingStep('Generating practice sentences...');
+        practiceSentences = await generatePracticeSentences(vocabulary, grammar, finalLanguage);
+      }
+
+      const project: AppProject = {
+        id: Date.now(),
+        title: videoTitle || `Video Lesson - ${videoId}`,
+        url: `https://www.youtube.com/watch?v=${videoId}`,
+        script: transcript,
+        vocabulary,
+        grammar,
+        detectedLanguage: finalLanguage,
+        practiceSentences,
+        status: 'completed',
+        userId,
+      };
+
+      return project;
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : 'Failed to process video';
+      if (message === 'RATE_LIMIT_EXCEEDED') {
+        Alert.alert('Rate Limit Exceeded', 'Please wait a few minutes and try again.');
+      } else {
+        Alert.alert('Processing failed', message);
+      }
+      throw error;
+    } finally {
+      setIsProcessing(false);
+      setProcessingStep('');
+    }
+  };
+
+  const regenerateAnalysis = async (currentProject: AppProject | null): Promise<AppProject | null> => {
+    if (!currentProject) return null;
+
+    setIsProcessing(true);
+    setProcessingStep('Re-analyzing content with AI...');
+
+    try {
+      const { vocabulary, grammar, detectedLanguage } = await analyzeContentWithAI(currentProject.script);
+
+      setProcessingStep('Generating practice sentences...');
+      const practiceSentences = await generatePracticeSentences(vocabulary, grammar, detectedLanguage);
+
+      return {
+        ...currentProject,
+        vocabulary,
+        grammar,
+        detectedLanguage,
+        practiceSentences,
+      };
+    } catch {
+      Alert.alert('Regeneration failed', 'Could not regenerate analysis');
+      return null;
+    } finally {
+      setIsProcessing(false);
+      setProcessingStep('');
+    }
+  };
+
+  const cleanup = useCallback(() => {
+    pollingIntervalsRef.current.forEach((interval) => clearInterval(interval));
+    pollingIntervalsRef.current.clear();
+  }, []);
+
+  return {
+    isProcessing,
+    processingStep,
+    setProcessingStep,
+    setIsProcessing,
+    extractVideoId,
+    fetchAvailableLanguages,
+    processVideo,
+    regenerateAnalysis,
+    analyzeContentWithAI,
+    generatePracticeSentences,
+    cleanup,
+  };
+};
