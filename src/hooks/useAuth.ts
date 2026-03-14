@@ -165,7 +165,7 @@ export const useAuth = () => {
           showTitle: false,
           enableUrlBarHiding: true,
           enableDefaultShare: false,
-          ephemeralWebSession: false,
+          ephemeralWebSession: true,
         });
 
         if (result.type === 'success' && result.url) {

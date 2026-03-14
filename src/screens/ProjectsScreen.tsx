@@ -11,9 +11,11 @@ import {
   RefreshControl,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { FolderOpen, Star, Search } from 'lucide-react-native';
 import { useNavigation } from '@react-navigation/native';
 import { useAuth } from '../hooks/useAuth';
-import { useProject } from '../hooks/useProject';
+import { useProjectContext } from '../context/ProjectContext';
+import { FeedbackDialog } from '../components/common/FeedbackDialog';
 import type { AppProject } from '../lib/types';
 
 const ProjectsScreen: React.FC = () => {
@@ -21,9 +23,10 @@ const ProjectsScreen: React.FC = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+  const [showFeedback, setShowFeedback] = useState(false);
   const navigation = useNavigation<any>();
-  const { user, handleLogout } = useAuth();
-  const { setCurrentProject, fetchProjects, deleteProject } = useProject(user);
+  const { handleLogout } = useAuth();
+  const { setCurrentProject, fetchProjects, deleteProject, toggleFavorite } = useProjectContext();
 
   const loadProjects = useCallback(async () => {
     const data = await fetchProjects();
@@ -43,7 +46,7 @@ const ProjectsScreen: React.FC = () => {
 
   const handleProjectPress = (project: AppProject) => {
     setCurrentProject(project);
-    navigation.navigate('StudyTab');
+    navigation.navigate('MoreTab', { screen: 'Study' });
   };
 
   const handleDeleteProject = (project: AppProject) => {
@@ -68,12 +71,32 @@ const ProjectsScreen: React.FC = () => {
     );
   };
 
+  const handleToggleFavorite = async (project: AppProject) => {
+    try {
+      await toggleFavorite(project.id);
+      setProjects((prev) =>
+        prev.map((p) =>
+          p.id === project.id ? { ...p, isFavorite: !p.isFavorite } : p
+        )
+      );
+    } catch {
+      Alert.alert('Error', 'Could not update favorite');
+    }
+  };
+
   const filteredProjects = projects.filter(
     (p) =>
       !searchQuery ||
       p.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
       p.detectedLanguage.toLowerCase().includes(searchQuery.toLowerCase())
   );
+
+  // Sort: favorites first, then by order
+  const sortedProjects = [...filteredProjects].sort((a, b) => {
+    if (a.isFavorite && !b.isFavorite) return -1;
+    if (!a.isFavorite && b.isFavorite) return 1;
+    return 0;
+  });
 
   const getStatusColor = (status?: string) => {
     switch (status) {
@@ -100,15 +123,27 @@ const ProjectsScreen: React.FC = () => {
           <Text style={styles.projectTitle} numberOfLines={2}>
             {item.title || 'Untitled Project'}
           </Text>
-          <View style={[styles.badge, { backgroundColor: statusColors.bg }]}>
-            <Text style={[styles.badgeText, { color: statusColors.text }]}>
-              {item.status || 'completed'}
-            </Text>
+          <View style={styles.headerRight}>
+            <TouchableOpacity
+              style={styles.favoriteButton}
+              onPress={() => handleToggleFavorite(item)}
+            >
+              {item.isFavorite ? (
+                <Star size={16} color="#EAB308" fill="#EAB308" />
+              ) : (
+                <Star size={16} color="#D4D4D4" />
+              )}
+            </TouchableOpacity>
+            <View style={[styles.badge, { backgroundColor: statusColors.bg }]}>
+              <Text style={[styles.badgeText, { color: statusColors.text }]}>
+                {item.status || 'completed'}
+              </Text>
+            </View>
           </View>
         </View>
         <View style={styles.projectMeta}>
-          <View style={[styles.badge, { backgroundColor: '#E8F0FE' }]}>
-            <Text style={[styles.badgeText, { color: '#1A73E8' }]}>
+          <View style={[styles.badge, { backgroundColor: '#FFF5EA' }]}>
+            <Text style={[styles.badgeText, { color: '#E8550C' }]}>
               {item.detectedLanguage}
             </Text>
           </View>
@@ -125,7 +160,6 @@ const ProjectsScreen: React.FC = () => {
 
   return (
     <SafeAreaView style={styles.container} edges={['bottom']}>
-      {/* Search Bar */}
       <View style={styles.searchContainer}>
         <TextInput
           style={styles.searchInput}
@@ -137,11 +171,13 @@ const ProjectsScreen: React.FC = () => {
 
       {isLoading ? (
         <View style={styles.loadingState}>
-          <ActivityIndicator size="large" color="#007AFF" />
+          <ActivityIndicator size="large" color="#E8550C" />
         </View>
-      ) : filteredProjects.length === 0 ? (
+      ) : sortedProjects.length === 0 ? (
         <View style={styles.emptyState}>
-          <Text style={styles.emptyIcon}>📁</Text>
+          <View style={styles.emptyIcon}>
+            <FolderOpen size={48} color="#A1A1A1" />
+          </View>
           <Text style={styles.emptyTitle}>
             {searchQuery ? 'No matching projects' : 'No saved projects'}
           </Text>
@@ -153,7 +189,7 @@ const ProjectsScreen: React.FC = () => {
         </View>
       ) : (
         <FlatList
-          data={filteredProjects}
+          data={sortedProjects}
           keyExtractor={(item) => String(item.id)}
           renderItem={renderProject}
           contentContainerStyle={styles.listContent}
@@ -163,12 +199,21 @@ const ProjectsScreen: React.FC = () => {
         />
       )}
 
-      {/* Logout Button */}
       <View style={styles.footer}>
+        <TouchableOpacity
+          style={styles.feedbackButton}
+          onPress={() => setShowFeedback(true)}
+        >
+          <Text style={styles.feedbackText}>Send Feedback</Text>
+        </TouchableOpacity>
         <TouchableOpacity style={styles.logoutButton} onPress={handleLogout}>
           <Text style={styles.logoutText}>Sign Out</Text>
         </TouchableOpacity>
       </View>
+      <FeedbackDialog
+        visible={showFeedback}
+        onClose={() => setShowFeedback(false)}
+      />
     </SafeAreaView>
   );
 };
@@ -176,14 +221,14 @@ const ProjectsScreen: React.FC = () => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F2F2F7',
+    backgroundColor: '#F5F5F5',
   },
   searchContainer: {
     paddingHorizontal: 16,
     paddingVertical: 8,
   },
   searchInput: {
-    backgroundColor: '#E5E5EA',
+    backgroundColor: '#D4D4D4',
     borderRadius: 10,
     paddingHorizontal: 14,
     paddingVertical: 10,
@@ -217,6 +262,18 @@ const styles = StyleSheet.create({
     flex: 1,
     marginRight: 8,
   },
+  headerRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  favoriteButton: {
+    padding: 2,
+  },
+  favoriteIcon: {
+    fontSize: 20,
+    color: '#EAB308',
+  },
   projectMeta: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -224,7 +281,7 @@ const styles = StyleSheet.create({
   },
   vocabCount: {
     fontSize: 13,
-    color: '#8E8E93',
+    color: '#A1A1A1',
   },
   badge: {
     paddingHorizontal: 10,
@@ -253,26 +310,38 @@ const styles = StyleSheet.create({
   emptyTitle: {
     fontSize: 18,
     fontWeight: '600',
-    color: '#3C3C43',
+    color: '#525252',
     marginBottom: 8,
   },
   emptySubtitle: {
     fontSize: 15,
-    color: '#8E8E93',
+    color: '#A1A1A1',
     textAlign: 'center',
     lineHeight: 22,
   },
   footer: {
     padding: 16,
     borderTopWidth: 1,
-    borderTopColor: '#E5E5EA',
+    borderTopColor: '#D4D4D4',
+    gap: 8,
+  },
+  feedbackButton: {
+    alignItems: 'center',
+    paddingVertical: 12,
+    backgroundColor: '#F5F5F5',
+    borderRadius: 10,
+  },
+  feedbackText: {
+    color: '#E8550C',
+    fontSize: 16,
+    fontWeight: '500',
   },
   logoutButton: {
     alignItems: 'center',
     paddingVertical: 12,
   },
   logoutText: {
-    color: '#FF3B30',
+    color: '#DC2626',
     fontSize: 16,
     fontWeight: '500',
   },

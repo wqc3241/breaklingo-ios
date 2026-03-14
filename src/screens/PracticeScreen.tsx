@@ -9,8 +9,8 @@ import {
   Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useAuth } from '../hooks/useAuth';
-import { useProject } from '../hooks/useProject';
+import { MessageCircle, Volume2, FileText } from 'lucide-react-native';
+import { useProjectContext } from '../context/ProjectContext';
 import { useTextToSpeech } from '../hooks/useTextToSpeech';
 import { supabase } from '../lib/supabase';
 import type { PracticeSentence } from '../lib/types';
@@ -21,8 +21,7 @@ const PracticeScreen: React.FC = () => {
   const [difficultyFilter, setDifficultyFilter] = useState<DifficultyFilter>('all');
   const [practiceSentences, setPracticeSentences] = useState<PracticeSentence[]>([]);
   const [isGenerating, setIsGenerating] = useState(false);
-  const { user } = useAuth();
-  const { currentProject } = useProject(user);
+  const { currentProject } = useProjectContext();
   const { speak, isPlaying, currentText } = useTextToSpeech();
 
   useEffect(() => {
@@ -86,7 +85,7 @@ const PracticeScreen: React.FC = () => {
     return (
       <SafeAreaView style={styles.container} edges={['bottom']}>
         <View style={styles.emptyState}>
-          <Text style={styles.emptyIcon}>💬</Text>
+          <View style={styles.emptyIcon}><MessageCircle size={48} color="#A1A1A1" /></View>
           <Text style={styles.emptyTitle}>No practice sentences</Text>
           <Text style={styles.emptySubtitle}>Add a video first to generate practice content</Text>
         </View>
@@ -105,9 +104,9 @@ const PracticeScreen: React.FC = () => {
             style={styles.audioButton}
             onPress={() => speak(item.text)}
           >
-            <Text style={[styles.audioIcon, isCurrentlyPlaying && styles.audioIconPlaying]}>
-              🔊
-            </Text>
+            <View style={isCurrentlyPlaying ? styles.audioIconPlaying : undefined}>
+              <Volume2 size={16} color="#E8550C" />
+            </View>
           </TouchableOpacity>
           <View style={styles.sentenceContent}>
             <Text style={styles.sentenceText}>{item.text}</Text>
@@ -137,7 +136,6 @@ const PracticeScreen: React.FC = () => {
 
   return (
     <SafeAreaView style={styles.container} edges={['bottom']}>
-      {/* Header */}
       <View style={styles.header}>
         <Text style={styles.headerTitle}>Practice Sentences</Text>
         <TouchableOpacity
@@ -146,14 +144,13 @@ const PracticeScreen: React.FC = () => {
           disabled={isGenerating}
         >
           {isGenerating ? (
-            <ActivityIndicator size="small" color="#007AFF" />
+            <ActivityIndicator size="small" color="#E8550C" />
           ) : (
             <Text style={styles.generateText}>↻ Generate</Text>
           )}
         </TouchableOpacity>
       </View>
 
-      {/* Filter Bar */}
       <View style={styles.filterBar}>
         {(['all', 'beginner', 'intermediate', 'advanced'] as DifficultyFilter[]).map((level) => (
           <TouchableOpacity
@@ -176,10 +173,9 @@ const PracticeScreen: React.FC = () => {
         ))}
       </View>
 
-      {/* Sentences List */}
       {filteredSentences.length === 0 ? (
         <View style={styles.emptyState}>
-          <Text style={styles.emptyIcon}>📝</Text>
+          <View style={styles.emptyIcon}><FileText size={48} color="#A1A1A1" /></View>
           <Text style={styles.emptyTitle}>
             {practiceSentences.length === 0 ? 'No practice sentences yet' : 'No sentences at this level'}
           </Text>
@@ -207,7 +203,7 @@ const PracticeScreen: React.FC = () => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F2F2F7',
+    backgroundColor: '#F5F5F5',
   },
   header: {
     flexDirection: 'row',
@@ -226,11 +222,11 @@ const styles = StyleSheet.create({
     paddingVertical: 6,
     borderRadius: 8,
     borderWidth: 1,
-    borderColor: '#C6C6C8',
+    borderColor: '#D4D4D4',
   },
   generateText: {
     fontSize: 14,
-    color: '#007AFF',
+    color: '#E8550C',
     fontWeight: '500',
   },
   filterBar: {
@@ -245,15 +241,15 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     backgroundColor: '#fff',
     borderWidth: 1,
-    borderColor: '#E5E5EA',
+    borderColor: '#D4D4D4',
   },
   filterChipActive: {
-    backgroundColor: '#007AFF',
-    borderColor: '#007AFF',
+    backgroundColor: '#E8550C',
+    borderColor: '#E8550C',
   },
   filterChipText: {
     fontSize: 13,
-    color: '#3C3C43',
+    color: '#525252',
     fontWeight: '500',
   },
   filterChipTextActive: {
@@ -284,7 +280,7 @@ const styles = StyleSheet.create({
     width: 36,
     height: 36,
     borderRadius: 18,
-    backgroundColor: '#F2F2F7',
+    backgroundColor: '#F5F5F5',
     alignItems: 'center',
     justifyContent: 'center',
     marginTop: 2,
@@ -307,7 +303,7 @@ const styles = StyleSheet.create({
   },
   translationText: {
     fontSize: 14,
-    color: '#8E8E93',
+    color: '#A1A1A1',
     fontStyle: 'italic',
     lineHeight: 20,
   },
@@ -338,19 +334,19 @@ const styles = StyleSheet.create({
   emptyTitle: {
     fontSize: 18,
     fontWeight: '600',
-    color: '#3C3C43',
+    color: '#525252',
     marginBottom: 8,
     textAlign: 'center',
   },
   emptySubtitle: {
     fontSize: 15,
-    color: '#8E8E93',
+    color: '#A1A1A1',
     textAlign: 'center',
     lineHeight: 22,
   },
   generateButtonLarge: {
     marginTop: 16,
-    backgroundColor: '#007AFF',
+    backgroundColor: '#E8550C',
     paddingHorizontal: 24,
     paddingVertical: 12,
     borderRadius: 12,

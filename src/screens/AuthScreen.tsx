@@ -246,7 +246,7 @@ const AuthScreen: React.FC = () => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F2F2F7',
+    backgroundColor: '#F5F5F5',
   },
   keyboardView: {
     flex: 1,
@@ -278,14 +278,14 @@ const styles = StyleSheet.create({
   },
   tagline: {
     fontSize: 15,
-    color: '#8E8E93',
+    color: '#A1A1A1',
     textAlign: 'center',
     marginTop: 4,
     marginBottom: 24,
   },
   tabContainer: {
     flexDirection: 'row',
-    backgroundColor: '#E5E5EA',
+    backgroundColor: '#D4D4D4',
     borderRadius: 10,
     padding: 3,
     marginBottom: 20,
@@ -307,7 +307,7 @@ const styles = StyleSheet.create({
   tabText: {
     fontSize: 14,
     fontWeight: '500',
-    color: '#8E8E93',
+    color: '#A1A1A1',
   },
   activeTabText: {
     color: '#000',
@@ -323,7 +323,7 @@ const styles = StyleSheet.create({
     fontSize: 16,
     marginBottom: 12,
     borderWidth: 1,
-    borderColor: '#E5E5EA',
+    borderColor: '#D4D4D4',
   },
   forgotButton: {
     alignSelf: 'flex-end',
@@ -331,7 +331,7 @@ const styles = StyleSheet.create({
     marginTop: -4,
   },
   forgotText: {
-    color: '#007AFF',
+    color: '#E8550C',
     fontSize: 14,
   },
   button: {
@@ -342,12 +342,12 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
   },
   primaryButton: {
-    backgroundColor: '#007AFF',
+    backgroundColor: '#E8550C',
   },
   googleButton: {
     backgroundColor: '#fff',
     borderWidth: 1,
-    borderColor: '#E5E5EA',
+    borderColor: '#D4D4D4',
     gap: 8,
   },
   buttonTextWhite: {
@@ -373,11 +373,11 @@ const styles = StyleSheet.create({
   dividerLine: {
     flex: 1,
     height: 1,
-    backgroundColor: '#E5E5EA',
+    backgroundColor: '#D4D4D4',
   },
   dividerText: {
     paddingHorizontal: 12,
-    color: '#8E8E93',
+    color: '#A1A1A1',
     fontSize: 12,
     textTransform: 'uppercase',
   },
@@ -389,7 +389,7 @@ const styles = StyleSheet.create({
   },
   subtitle: {
     fontSize: 15,
-    color: '#8E8E93',
+    color: '#A1A1A1',
     marginBottom: 24,
   },
   linkButton: {
@@ -397,7 +397,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   linkText: {
-    color: '#007AFF',
+    color: '#E8550C',
     fontSize: 15,
   },
 });

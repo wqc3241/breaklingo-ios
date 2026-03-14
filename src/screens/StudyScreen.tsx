@@ -6,24 +6,36 @@ import {
   ScrollView,
   TouchableOpacity,
   FlatList,
+  ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useAuth } from '../hooks/useAuth';
-import { useProject } from '../hooks/useProject';
+import { BookOpen, Volume2, RefreshCw } from 'lucide-react-native';
+import { useProjectContext } from '../context/ProjectContext';
+import { useVideoProcessing } from '../hooks/useVideoProcessing';
+import { useTextToSpeech } from '../hooks/useTextToSpeech';
 import type { VocabularyItem, GrammarItem } from '../lib/types';
 
 type StudyTab = 'vocabulary' | 'grammar' | 'script';
 
 const StudyScreen: React.FC = () => {
   const [activeTab, setActiveTab] = useState<StudyTab>('vocabulary');
-  const { user } = useAuth();
-  const { currentProject } = useProject(user);
+  const { currentProject, setCurrentProject, autoSaveProject } = useProjectContext();
+  const { regenerateAnalysis, isProcessing, processingStep } = useVideoProcessing();
+  const { speak, isPlaying, currentText } = useTextToSpeech();
+
+  const handleRegenerate = async () => {
+    const result = await regenerateAnalysis(currentProject);
+    if (result) {
+      setCurrentProject(result);
+      await autoSaveProject(result);
+    }
+  };
 
   if (!currentProject) {
     return (
       <SafeAreaView style={styles.container} edges={['bottom']}>
         <View style={styles.emptyState}>
-          <Text style={styles.emptyIcon}>📖</Text>
+          <BookOpen size={48} color="#A1A1A1" />
           <Text style={styles.emptyTitle}>No lesson yet</Text>
           <Text style={styles.emptySubtitle}>
             Add a YouTube video to start learning
@@ -62,17 +74,40 @@ const StudyScreen: React.FC = () => {
 
   const renderVocabularyItem = ({ item }: { item: VocabularyItem }) => {
     const colors = getDifficultyColor(item.difficulty);
+    const isSpeaking = isPlaying && currentText === item.word;
     return (
       <View style={styles.card}>
         <View style={styles.cardHeader}>
-          <Text style={styles.word}>{item.word}</Text>
-          {item.difficulty && (
-            <View style={[styles.badge, { backgroundColor: colors.bg }]}>
-              <Text style={[styles.badgeText, { color: colors.text }]}>
-                {item.difficulty}
-              </Text>
+          <View style={styles.wordRow}>
+            <TouchableOpacity
+              style={styles.speakerButton}
+              onPress={() => speak(item.word)}
+            >
+              <Volume2 size={16} color="#E8550C" />
+            </TouchableOpacity>
+            <View style={styles.wordInfo}>
+              <Text style={styles.word}>{item.word}</Text>
+              {item.reading && (
+                <Text style={styles.reading}>{item.reading}</Text>
+              )}
             </View>
-          )}
+          </View>
+          <View style={styles.badgeRow}>
+            {item.partOfSpeech && (
+              <View style={[styles.badge, { backgroundColor: '#EDE9FE' }]}>
+                <Text style={[styles.badgeText, { color: '#7C3AED' }]}>
+                  {item.partOfSpeech}
+                </Text>
+              </View>
+            )}
+            {item.difficulty && (
+              <View style={[styles.badge, { backgroundColor: colors.bg }]}>
+                <Text style={[styles.badgeText, { color: colors.text }]}>
+                  {item.difficulty}
+                </Text>
+              </View>
+            )}
+          </View>
         </View>
         <Text style={styles.definition}>
           {item.definition || item.meaning || ''}
@@ -81,27 +116,56 @@ const StudyScreen: React.FC = () => {
     );
   };
 
-  const renderGrammarItem = ({ item }: { item: GrammarItem }) => (
-    <View style={styles.card}>
-      <Text style={styles.rule}>{item.rule}</Text>
-      <Text style={styles.explanation}>{item.explanation}</Text>
-      <Text style={styles.example}>{item.example}</Text>
-    </View>
-  );
+  const renderGrammarItem = ({ item }: { item: GrammarItem }) => {
+    const isSpeaking = isPlaying && currentText === item.example;
+    return (
+      <View style={styles.card}>
+        <Text style={styles.rule}>{item.rule}</Text>
+        <Text style={styles.explanation}>{item.explanation}</Text>
+        <TouchableOpacity
+          style={styles.exampleRow}
+          onPress={() => speak(item.example)}
+        >
+          <Volume2 size={16} color="#E8550C" />
+          <Text style={styles.example}>{item.example}</Text>
+        </TouchableOpacity>
+      </View>
+    );
+  };
 
   return (
     <SafeAreaView style={styles.container} edges={['bottom']}>
-      {/* Project Title */}
+      {/* Project Title + Regenerate */}
       <View style={styles.titleBar}>
-        <Text style={styles.projectTitle} numberOfLines={1}>
-          {currentProject.title}
-        </Text>
-        <View style={[styles.badge, { backgroundColor: '#E8F0FE' }]}>
-          <Text style={[styles.badgeText, { color: '#1A73E8' }]}>
-            {currentProject.detectedLanguage}
+        <View style={styles.titleLeft}>
+          <Text style={styles.projectTitle} numberOfLines={1}>
+            {currentProject.title}
           </Text>
+          <View style={[styles.badge, { backgroundColor: '#FFF5EA' }]}>
+            <Text style={[styles.badgeText, { color: '#E8550C' }]}>
+              {currentProject.detectedLanguage}
+            </Text>
+          </View>
         </View>
+        <TouchableOpacity
+          style={styles.regenerateButton}
+          onPress={handleRegenerate}
+          disabled={isProcessing}
+        >
+          {isProcessing ? (
+            <ActivityIndicator size="small" color="#E8550C" />
+          ) : (
+            <Text style={styles.regenerateText}>↻</Text>
+          )}
+        </TouchableOpacity>
       </View>
+
+      {isProcessing && processingStep ? (
+        <View style={styles.processingBar}>
+          <ActivityIndicator size="small" color="#E8550C" />
+          <Text style={styles.processingText}>{processingStep}</Text>
+        </View>
+      ) : null}
 
       {/* Segment Control */}
       <View style={styles.segmentContainer}>
@@ -173,7 +237,7 @@ const StudyScreen: React.FC = () => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F2F2F7',
+    backgroundColor: '#F5F5F5',
   },
   titleBar: {
     flexDirection: 'row',
@@ -182,16 +246,48 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 8,
   },
+  titleLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+    marginRight: 8,
+    gap: 8,
+  },
   projectTitle: {
     fontSize: 17,
     fontWeight: '600',
     flex: 1,
-    marginRight: 8,
     color: '#000',
+  },
+  regenerateButton: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: '#FFF5EA',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  regenerateText: {
+    fontSize: 18,
+    color: '#E8550C',
+  },
+  processingBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginHorizontal: 16,
+    marginBottom: 8,
+    backgroundColor: '#FFF5EA',
+    borderRadius: 8,
+    padding: 8,
+  },
+  processingText: {
+    fontSize: 13,
+    color: '#E8550C',
   },
   segmentContainer: {
     flexDirection: 'row',
-    backgroundColor: '#E5E5EA',
+    backgroundColor: '#D4D4D4',
     borderRadius: 10,
     padding: 3,
     marginHorizontal: 16,
@@ -214,7 +310,7 @@ const styles = StyleSheet.create({
   segmentText: {
     fontSize: 13,
     fontWeight: '500',
-    color: '#8E8E93',
+    color: '#A1A1A1',
   },
   segmentTextActive: {
     color: '#000',
@@ -237,19 +333,51 @@ const styles = StyleSheet.create({
   cardHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'center',
+    alignItems: 'flex-start',
     marginBottom: 6,
+  },
+  wordRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+    gap: 8,
+  },
+  speakerButton: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: '#F5F5F5',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  speakerIcon: {
+    fontSize: 16,
+  },
+  speakerIconActive: {
+    opacity: 0.4,
+  },
+  wordInfo: {
+    flex: 1,
   },
   word: {
     fontSize: 17,
     fontWeight: '600',
     color: '#000',
-    flex: 1,
+  },
+  reading: {
+    fontSize: 13,
+    color: '#A1A1A1',
+    marginTop: 2,
+  },
+  badgeRow: {
+    flexDirection: 'row',
+    gap: 4,
   },
   definition: {
     fontSize: 15,
-    color: '#3C3C43',
+    color: '#525252',
     lineHeight: 22,
+    marginLeft: 40,
   },
   rule: {
     fontSize: 17,
@@ -259,14 +387,20 @@ const styles = StyleSheet.create({
   },
   explanation: {
     fontSize: 14,
-    color: '#8E8E93',
+    color: '#A1A1A1',
     marginBottom: 8,
     lineHeight: 20,
   },
+  exampleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
   example: {
     fontSize: 15,
-    color: '#007AFF',
+    color: '#E8550C',
     fontStyle: 'italic',
+    flex: 1,
   },
   badge: {
     paddingHorizontal: 10,
@@ -301,12 +435,12 @@ const styles = StyleSheet.create({
   emptyTitle: {
     fontSize: 18,
     fontWeight: '600',
-    color: '#3C3C43',
+    color: '#525252',
     marginBottom: 8,
   },
   emptySubtitle: {
     fontSize: 15,
-    color: '#8E8E93',
+    color: '#A1A1A1',
     textAlign: 'center',
     lineHeight: 22,
   },
@@ -316,7 +450,7 @@ const styles = StyleSheet.create({
   },
   emptyListText: {
     fontSize: 15,
-    color: '#8E8E93',
+    color: '#A1A1A1',
   },
 });
 
