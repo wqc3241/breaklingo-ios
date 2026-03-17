@@ -11,21 +11,31 @@ import {
   RefreshControl,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { FolderOpen, Star, Search } from 'lucide-react-native';
+import { FolderOpen, Star, Search, Clock } from 'lucide-react-native';
 import { useNavigation } from '@react-navigation/native';
-import { useAuth } from '../hooks/useAuth';
 import { useProjectContext } from '../context/ProjectContext';
-import { FeedbackDialog } from '../components/common/FeedbackDialog';
 import type { AppProject } from '../lib/types';
+
+const formatLastAccessed = (dateString?: string): string => {
+  if (!dateString) return '';
+  const date = new Date(dateString);
+  const now = new Date();
+  const diffMs = now.getTime() - date.getTime();
+  const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+
+  if (diffDays === 0) return 'Today';
+  if (diffDays === 1) return 'Yesterday';
+  if (diffDays < 7) return `${diffDays} days ago`;
+  if (diffDays < 30) return `${Math.floor(diffDays / 7)} weeks ago`;
+  return date.toLocaleDateString();
+};
 
 const ProjectsScreen: React.FC = () => {
   const [projects, setProjects] = useState<AppProject[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
-  const [showFeedback, setShowFeedback] = useState(false);
   const navigation = useNavigation<any>();
-  const { handleLogout } = useAuth();
   const { setCurrentProject, fetchProjects, deleteProject, toggleFavorite } = useProjectContext();
 
   const loadProjects = useCallback(async () => {
@@ -95,7 +105,10 @@ const ProjectsScreen: React.FC = () => {
   const sortedProjects = [...filteredProjects].sort((a, b) => {
     if (a.isFavorite && !b.isFavorite) return -1;
     if (!a.isFavorite && b.isFavorite) return 1;
-    return 0;
+    // Secondary sort: most recently updated first
+    const aTime = a.updatedAt ? new Date(a.updatedAt).getTime() : 0;
+    const bTime = b.updatedAt ? new Date(b.updatedAt).getTime() : 0;
+    return bTime - aTime;
   });
 
   const getStatusColor = (status?: string) => {
@@ -153,6 +166,14 @@ const ProjectsScreen: React.FC = () => {
           <Text style={styles.vocabCount}>
             {item.grammar?.length || 0} grammar
           </Text>
+          {item.lastAccessed ? (
+            <View style={styles.lastAccessedRow}>
+              <Clock size={11} color="#A1A1A1" />
+              <Text style={styles.lastAccessedText}>
+                {formatLastAccessed(item.lastAccessed)}
+              </Text>
+            </View>
+          ) : null}
         </View>
       </TouchableOpacity>
     );
@@ -175,16 +196,20 @@ const ProjectsScreen: React.FC = () => {
         </View>
       ) : sortedProjects.length === 0 ? (
         <View style={styles.emptyState}>
-          <View style={styles.emptyIcon}>
-            <FolderOpen size={48} color="#A1A1A1" />
+          <View style={styles.emptyIconCircle}>
+            {searchQuery ? (
+              <Search size={36} color="#E8550C" />
+            ) : (
+              <FolderOpen size={36} color="#E8550C" />
+            )}
           </View>
           <Text style={styles.emptyTitle}>
             {searchQuery ? 'No matching projects' : 'No saved projects'}
           </Text>
           <Text style={styles.emptySubtitle}>
             {searchQuery
-              ? 'Try a different search term'
-              : 'Process a YouTube video to create your first project'}
+              ? 'Try a different search term or clear the filter'
+              : 'Search for a YouTube video on the Search tab to create your first project'}
           </Text>
         </View>
       ) : (
@@ -199,21 +224,6 @@ const ProjectsScreen: React.FC = () => {
         />
       )}
 
-      <View style={styles.footer}>
-        <TouchableOpacity
-          style={styles.feedbackButton}
-          onPress={() => setShowFeedback(true)}
-        >
-          <Text style={styles.feedbackText}>Send Feedback</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.logoutButton} onPress={handleLogout}>
-          <Text style={styles.logoutText}>Sign Out</Text>
-        </TouchableOpacity>
-      </View>
-      <FeedbackDialog
-        visible={showFeedback}
-        onClose={() => setShowFeedback(false)}
-      />
     </SafeAreaView>
   );
 };
@@ -283,6 +293,15 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: '#A1A1A1',
   },
+  lastAccessedRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 3,
+  },
+  lastAccessedText: {
+    fontSize: 12,
+    color: '#A1A1A1',
+  },
   badge: {
     paddingHorizontal: 10,
     paddingVertical: 4,
@@ -303,6 +322,15 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingHorizontal: 32,
   },
+  emptyIconCircle: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    backgroundColor: '#FFF5EA',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 16,
+  },
   emptyIcon: {
     fontSize: 48,
     marginBottom: 16,
@@ -318,32 +346,6 @@ const styles = StyleSheet.create({
     color: '#A1A1A1',
     textAlign: 'center',
     lineHeight: 22,
-  },
-  footer: {
-    padding: 16,
-    borderTopWidth: 1,
-    borderTopColor: '#D4D4D4',
-    gap: 8,
-  },
-  feedbackButton: {
-    alignItems: 'center',
-    paddingVertical: 12,
-    backgroundColor: '#F5F5F5',
-    borderRadius: 10,
-  },
-  feedbackText: {
-    color: '#E8550C',
-    fontSize: 16,
-    fontWeight: '500',
-  },
-  logoutButton: {
-    alignItems: 'center',
-    paddingVertical: 12,
-  },
-  logoutText: {
-    color: '#DC2626',
-    fontSize: 16,
-    fontWeight: '500',
   },
 });
 

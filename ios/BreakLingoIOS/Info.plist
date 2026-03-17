@@ -46,6 +46,10 @@
 	</dict>
 	<key>NSLocationWhenInUseUsageDescription</key>
 	<string></string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>BreakLingo needs microphone access to record your pronunciation for speaking practice and AI conversations.</string>
+	<key>NSSpeechRecognitionUsageDescription</key>
+	<string>BreakLingo uses speech recognition to evaluate your pronunciation.</string>
 	<key>RCTNewArchEnabled</key>
 	<true/>
 	<key>UILaunchStoryboardName</key>

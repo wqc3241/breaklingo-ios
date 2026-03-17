@@ -1,5 +1,6 @@
 import React from 'react';
 import { render, fireEvent, waitFor } from '@testing-library/react-native';
+import { NativeModules } from 'react-native';
 import ReadAfterMeQ from '../../../src/components/quiz/ReadAfterMeQ';
 import type { QuizQuestion } from '../../../src/lib/types';
 
@@ -69,8 +70,6 @@ describe('ReadAfterMeQ', () => {
     await waitFor(() => {
       fireEvent.press(getByText('Record'));
     });
-    // Audio.requestPermissionsAsync should have been called
-    const { Audio } = require('expo-av');
-    expect(Audio.requestPermissionsAsync).toHaveBeenCalled();
+    expect(NativeModules.AudioRecorderModule.requestPermission).toHaveBeenCalled();
   });
 });

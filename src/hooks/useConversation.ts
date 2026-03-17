@@ -1,4 +1,5 @@
 import { useState, useCallback, useRef } from 'react';
+import { Alert } from 'react-native';
 import { supabase } from '../lib/supabase';
 import { useTextToSpeech } from './useTextToSpeech';
 import { useWhisperSTT } from './useWhisperSTT';
@@ -19,6 +20,9 @@ export const useConversation = () => {
   const [currentSessionId, setCurrentSessionId] = useState<string | null>(null);
   const startTimeRef = useRef<number>(0);
   const projectRef = useRef<AppProject | null>(null);
+  const messagesRef = useRef<ConversationMessage[]>([]);
+  // Keep messagesRef in sync with messages state to avoid stale closures
+  messagesRef.current = messages;
 
   const { speak, isPlaying } = useTextToSpeech();
   const { startListening, stopListening, cancelListening, isListening, isTranscribing, finalTranscript } = useWhisperSTT();
@@ -36,13 +40,30 @@ export const useConversation = () => {
       const { data, error } = await supabase.functions.invoke('conversation-chat', {
         body: {
           messages: [],
-          vocabulary: project.vocabulary,
-          grammar: project.grammar,
-          language: project.detectedLanguage,
+          projectContext: {
+            vocabulary: project.vocabulary,
+            grammar: project.grammar,
+            detectedLanguage: project.detectedLanguage,
+            title: project.title,
+          },
         },
       });
 
-      if (error) throw error;
+      if (error) {
+        console.error('conversation-chat error:', error);
+        // Use fallback greeting so user can still practice
+        const fallback = `Hello! Let's practice ${project.detectedLanguage || 'this language'} together. Try saying something using the vocabulary from "${project.title}".`;
+        const aiMessage: ConversationMessage = {
+          role: 'assistant',
+          content: fallback,
+          timestamp: Date.now(),
+        };
+        setMessages([aiMessage]);
+        setState('speaking');
+        await speak(fallback);
+        setState('idle');
+        return;
+      }
 
       const greeting = data?.message || data?.reply || 'Hello! Let\'s practice together.';
       const aiMessage: ConversationMessage = {
@@ -59,6 +80,14 @@ export const useConversation = () => {
       setState('idle');
     } catch (error) {
       console.error('Failed to start conversation:', error);
+      // Use fallback greeting on network/unexpected errors too
+      const fallback = `Hello! Let's practice together. Type or say something to get started.`;
+      const aiMessage: ConversationMessage = {
+        role: 'assistant',
+        content: fallback,
+        timestamp: Date.now(),
+      };
+      setMessages([aiMessage]);
       setState('idle');
     }
   }, [speak]);
@@ -82,7 +111,8 @@ export const useConversation = () => {
     setState('processing');
 
     try {
-      const allMessages = [...messages, userMessage].map((m) => ({
+      // Use messagesRef to get current messages and avoid stale closure
+      const allMessages = [...messagesRef.current, userMessage].map((m) => ({
         role: m.role,
         content: m.content,
       }));
@@ -90,13 +120,21 @@ export const useConversation = () => {
       const { data, error } = await supabase.functions.invoke('conversation-chat', {
         body: {
           messages: allMessages,
-          vocabulary: projectRef.current!.vocabulary,
-          grammar: projectRef.current!.grammar,
-          language: projectRef.current!.detectedLanguage,
+          projectContext: {
+            vocabulary: projectRef.current!.vocabulary,
+            grammar: projectRef.current!.grammar,
+            detectedLanguage: projectRef.current!.detectedLanguage,
+            title: projectRef.current!.title,
+          },
         },
       });
 
-      if (error) throw error;
+      if (error) {
+        console.error('conversation-chat reply error:', error);
+        Alert.alert('Connection Error', 'Could not get a response. Please try again.');
+        setState('idle');
+        return;
+      }
 
       const reply = data?.message || data?.reply || '';
       const aiMessage: ConversationMessage = {
@@ -112,26 +150,32 @@ export const useConversation = () => {
       setState('idle');
     } catch (error) {
       console.error('Conversation error:', error);
+      Alert.alert('Error', 'Something went wrong. Please try again.');
       setState('idle');
     }
-  }, [messages, speak]);
+  }, [speak]);
 
   const sendTextMessage = useCallback(async (text: string) => {
     await processUserInput(text);
   }, [processUserInput]);
 
   const handleVoiceInput = useCallback(async () => {
-    if (isListening) {
-      setState('processing');
-      const text = await stopListening();
-      if (text) {
-        await processUserInput(text);
+    try {
+      if (isListening) {
+        setState('processing');
+        const text = await stopListening();
+        if (text) {
+          await processUserInput(text);
+        } else {
+          setState('idle');
+        }
       } else {
-        setState('idle');
+        setState('listening');
+        await startListening();
       }
-    } else {
-      setState('listening');
-      await startListening();
+    } catch (error) {
+      console.error('Voice input error:', error);
+      setState('idle');
     }
   }, [isListening, startListening, stopListening, processUserInput]);
 
@@ -140,10 +184,11 @@ export const useConversation = () => {
     setState('processing');
 
     try {
-      // Get conversation summary
+      // Get conversation summary — use ref to get latest messages
+      const currentMessages = messagesRef.current;
       const { data, error } = await supabase.functions.invoke('conversation-summary', {
         body: {
-          messages: messages.map((m) => ({ role: m.role, content: m.content })),
+          messages: currentMessages.map((m) => ({ role: m.role, content: m.content })),
           language: projectRef.current?.detectedLanguage || 'Unknown',
         },
       });
@@ -165,7 +210,7 @@ export const useConversation = () => {
             projectId: projectRef.current.id,
             projectTitle: projectRef.current.title,
             language: projectRef.current.detectedLanguage,
-            messages,
+            messages: currentMessages,
             summary: summaryData,
             createdAt: startTimeRef.current,
             duration: Date.now() - startTimeRef.current,
@@ -178,7 +223,7 @@ export const useConversation = () => {
     } finally {
       setState('idle');
     }
-  }, [messages, currentSessionId, cancelListening]);
+  }, [currentSessionId, cancelListening]);
 
   const resetConversation = useCallback(() => {
     setMessages([]);

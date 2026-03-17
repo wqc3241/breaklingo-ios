@@ -112,4 +112,92 @@ describe('StudyScreen', () => {
     const { getByText } = render(<StudyScreen />);
     expect(getByText('Japanese Lesson')).toBeTruthy();
   });
+
+  it('shows failed status with error message', () => {
+    mockCurrentProject = {
+      id: '1',
+      title: 'Failed Project',
+      status: 'failed',
+      errorMessage: 'Rate limit exceeded',
+      vocabulary: [],
+      grammar: [],
+      script: '',
+    };
+
+    const { getByText } = render(<StudyScreen />);
+    expect(getByText('Generation failed')).toBeTruthy();
+    expect(getByText('Rate limit exceeded')).toBeTruthy();
+    expect(getByText('Try Again')).toBeTruthy();
+  });
+
+  it('shows pending status card', () => {
+    mockCurrentProject = {
+      id: '1',
+      title: 'Pending Project',
+      status: 'pending',
+      vocabulary: [],
+      grammar: [],
+      script: '',
+    };
+
+    const { getByText } = render(<StudyScreen />);
+    expect(getByText('Processing...')).toBeTruthy();
+  });
+
+  it('shows video preview when project has URL', () => {
+    mockCurrentProject = {
+      id: '1',
+      title: 'Video Project',
+      url: 'https://www.youtube.com/watch?v=abc12345678',
+      vocabulary: [],
+      grammar: [],
+      script: '',
+    };
+
+    const { getByText } = render(<StudyScreen />);
+    expect(getByText('Watch on YouTube')).toBeTruthy();
+  });
+
+  it('shows language selector badge', () => {
+    mockCurrentProject = {
+      id: '1',
+      title: 'Test',
+      detectedLanguage: 'Japanese',
+      vocabulary: [],
+      grammar: [],
+      script: '',
+    };
+
+    const { getByText } = render(<StudyScreen />);
+    expect(getByText('Japanese')).toBeTruthy();
+  });
+
+  it('shows play script button on script tab', () => {
+    mockCurrentProject = {
+      id: '1',
+      title: 'Test',
+      vocabulary: [],
+      grammar: [],
+      script: 'Some transcript content',
+    };
+
+    const { getByText } = render(<StudyScreen />);
+    fireEvent.press(getByText('Script'));
+    expect(getByText('Play Script')).toBeTruthy();
+  });
+
+  it('calls speak when play script button is pressed', () => {
+    mockCurrentProject = {
+      id: '1',
+      title: 'Test',
+      vocabulary: [],
+      grammar: [],
+      script: 'Some transcript content',
+    };
+
+    const { getByText } = render(<StudyScreen />);
+    fireEvent.press(getByText('Script'));
+    fireEvent.press(getByText('Play Script'));
+    expect(mockSpeak).toHaveBeenCalledWith('Some transcript content');
+  });
 });

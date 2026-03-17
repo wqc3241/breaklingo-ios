@@ -35,6 +35,8 @@ export interface AppProject {
   userId?: string;
   errorMessage?: string;
   isFavorite?: boolean;
+  lastAccessed?: string;
+  updatedAt?: string;
 }
 
 // Quiz types
@@ -141,20 +143,27 @@ export const filterValidQuestions = (questions: any[]): QuizQuestion[] => {
     if (q.type === 'word_arrange') return q.words && q.correctOrder;
     if (q.type === 'multiple_select') return q.correctSelections && q.correctSelections.length > 0;
     if (q.type === 'read_after_me') return q.targetText;
-    if (q.type === 'listening') return q.audioText;
+    if (q.type === 'listening') return q.audioText && q.options && q.options.length > 0;
     return q.correctAnswer && q.options && q.options.length > 0;
   });
 };
 
+const parseUnitOrder = (title: string): number => {
+  const match = title.match(/^Unit\s+(\d+)/i);
+  return match ? parseInt(match[1], 10) - 1 : -1;
+};
+
 export const mapDbUnitToLearningUnit = (dbUnit: any, projectTitle: string): LearningUnit => {
+  const title = dbUnit.title || `Unit ${dbUnit.unit_order ?? dbUnit.id ?? 0}`;
+  const parsedOrder = parseUnitOrder(title);
   return {
     id: dbUnit.id,
     projectId: dbUnit.project_id,
     projectTitle,
-    title: dbUnit.title || `Unit ${dbUnit.unit_order ?? 0}`,
+    title,
     description: dbUnit.description || '',
     difficulty: dbUnit.difficulty || 'beginner',
-    order: dbUnit.unit_order || 0,
+    order: dbUnit.unit_order ?? (parsedOrder >= 0 ? parsedOrder : 0),
     questions: filterValidQuestions(dbUnit.questions || []),
     completed: dbUnit.completed || false,
     bestScore: dbUnit.best_score || 0,

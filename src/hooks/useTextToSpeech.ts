@@ -1,40 +1,36 @@
-import { useState, useRef, useCallback, useEffect } from 'react';
-import { Alert } from 'react-native';
-import { Audio } from 'expo-av';
+import { useState, useCallback } from 'react';
+import { Alert, NativeModules } from 'react-native';
 import { supabase, SUPABASE_URL } from '../lib/supabase';
+
+// btoa is available in Hermes runtime but not in RN's TS lib definitions
+declare const btoa: (data: string) => string;
+
+const { AudioPlayerModule } = NativeModules;
 
 export const useTextToSpeech = () => {
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentText, setCurrentText] = useState<string | null>(null);
-  const soundRef = useRef<Audio.Sound | null>(null);
-
-  useEffect(() => {
-    return () => {
-      if (soundRef.current) {
-        soundRef.current.unloadAsync();
-      }
-    };
-  }, []);
 
   const speak = useCallback(async (text: string, voice: string = 'coral', instructions?: string) => {
     try {
+      if (!text || !text.trim()) return;
+
+      if (!AudioPlayerModule) {
+        console.warn('AudioPlayerModule is not available');
+        return;
+      }
+
       // If clicking the same text that's playing, stop it
       if (isPlaying && currentText === text) {
-        if (soundRef.current) {
-          await soundRef.current.stopAsync();
-          await soundRef.current.unloadAsync();
-          soundRef.current = null;
-        }
+        await AudioPlayerModule.stop();
         setIsPlaying(false);
         setCurrentText(null);
         return;
       }
 
       // If different audio is playing, stop it first
-      if (soundRef.current) {
-        await soundRef.current.stopAsync();
-        await soundRef.current.unloadAsync();
-        soundRef.current = null;
+      if (isPlaying) {
+        await AudioPlayerModule.stop();
       }
 
       setIsPlaying(true);
@@ -66,33 +62,19 @@ export const useTextToSpeech = () => {
         throw new Error(`Failed to generate speech: ${errorText}`);
       }
 
-      const blob = await response.blob();
-      const reader = new FileReader();
+      const arrayBuffer = await response.arrayBuffer();
+      const bytes = new Uint8Array(arrayBuffer);
+      let binary = '';
+      for (let i = 0; i < bytes.length; i++) {
+        binary += String.fromCharCode(bytes[i]);
+      }
+      const base64 = btoa(binary);
 
-      const base64Data = await new Promise<string>((resolve, reject) => {
-        reader.onload = () => {
-          const dataUrl = reader.result as string;
-          resolve(dataUrl);
-        };
-        reader.onerror = reject;
-        reader.readAsDataURL(blob);
-      });
+      // Play using native AVAudioPlayer — promise resolves when playback finishes
+      await AudioPlayerModule.playBase64(base64);
 
-      const { sound } = await Audio.Sound.createAsync(
-        { uri: base64Data },
-        { shouldPlay: true }
-      );
-
-      soundRef.current = sound;
-
-      sound.setOnPlaybackStatusUpdate((status) => {
-        if ('didJustFinish' in status && status.didJustFinish) {
-          setIsPlaying(false);
-          setCurrentText(null);
-          sound.unloadAsync();
-          soundRef.current = null;
-        }
-      });
+      setIsPlaying(false);
+      setCurrentText(null);
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : 'Could not generate audio.';
       console.error('TTS Error:', error);

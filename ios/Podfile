@@ -17,6 +17,9 @@ end
 target 'BreakLingoIOS' do
   config = use_native_modules!
 
+  # Native audio playback & recording (replaces expo-av)
+  pod 'AudioModules', :path => './AudioModules'
+
   use_react_native!(
     :path => config[:reactNativePath],
     # An absolute path to your application root.
@@ -30,5 +33,12 @@ target 'BreakLingoIOS' do
       :mac_catalyst_enabled => false,
       # :ccache_enabled => true
     )
+
+    # Generate dSYMs for all pods (fixes TestFlight upload warnings)
+    installer.pods_project.targets.each do |target|
+      target.build_configurations.each do |config|
+        config.build_settings['DEBUG_INFORMATION_FORMAT'] = 'dwarf-with-dsym'
+      end
+    end
   end
 end

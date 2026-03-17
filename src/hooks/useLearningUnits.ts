@@ -38,7 +38,7 @@ export const useLearningUnits = (userId: string | undefined) => {
         .from('learning_units')
         .select('*')
         .in('project_id', projectIds)
-        .order('unit_order', { ascending: true });
+        .order('created_at', { ascending: true });
 
       if (unitsError) throw unitsError;
 
@@ -109,7 +109,7 @@ export const useLearningUnits = (userId: string | undefined) => {
           .from('learning_units')
           .select('*')
           .in('project_id', projectIds)
-          .order('unit_order', { ascending: true });
+          .order('created_at', { ascending: true });
 
         if (error) return;
 

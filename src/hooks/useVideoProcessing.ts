@@ -55,30 +55,27 @@ export const useVideoProcessing = () => {
       if (data?.error && data.error.includes('more than 50 words')) {
         throw new Error(data.error);
       }
-    } catch (err) {
-      if (err instanceof Error && err.message === 'RATE_LIMIT_EXCEEDED') throw err;
-    }
 
-    throw new Error('Could not extract transcript. Please ensure the video has captions available and try again.');
+      // If none of the above conditions matched, the response was unexpected
+      throw new Error(data?.error || 'Unexpected response from transcript service. Please try again.');
+    } catch (err) {
+      if (err instanceof Error) throw err;
+      throw new Error('Could not extract transcript. Please ensure the video has captions available and try again.');
+    }
   };
 
   const analyzeContentWithAI = async (script: string) => {
-    try {
-      const { data, error } = await supabase.functions.invoke('analyze-content', {
-        body: { transcript: script },
-      });
+    const { data, error } = await supabase.functions.invoke('analyze-content', {
+      body: { transcript: script },
+    });
 
-      if (error) throw error;
+    if (error) throw new Error('AI analysis failed. Please try again.');
 
-      return {
-        vocabulary: (data.vocabulary || []) as VocabularyItem[],
-        grammar: (data.grammar || []) as GrammarItem[],
-        detectedLanguage: (data.detectedLanguage || 'Unknown') as string,
-      };
-    } catch (error) {
-      console.error('Failed to analyze content with AI:', error);
-      return { vocabulary: [], grammar: [], detectedLanguage: 'Unknown' };
-    }
+    return {
+      vocabulary: (data.vocabulary || []) as VocabularyItem[],
+      grammar: (data.grammar || []) as GrammarItem[],
+      detectedLanguage: (data.detectedLanguage || 'Unknown') as string,
+    };
   };
 
   const generatePracticeSentences = async (
@@ -91,10 +88,14 @@ export const useVideoProcessing = () => {
         body: { vocabulary, grammar, detectedLanguage, count: 10 },
       });
 
-      if (error) return [];
+      if (error) {
+        console.warn('Practice sentence generation failed:', error);
+        return [];
+      }
       if (data?.sentences && data.sentences.length > 0) return data.sentences;
       return [];
-    } catch {
+    } catch (err) {
+      console.warn('Practice sentence generation error:', err);
       return [];
     }
   };
@@ -146,6 +147,8 @@ export const useVideoProcessing = () => {
       onComplete(completedProject);
     } catch (error) {
       console.error('Failed to complete project processing:', error);
+      const message = error instanceof Error ? error.message : 'Could not finish processing the video.';
+      Alert.alert('Processing failed', message);
     }
   };
 
@@ -155,6 +158,13 @@ export const useVideoProcessing = () => {
     initialProject: AppProject,
     onComplete: (project: AppProject) => void
   ) => {
+    // Clear any existing polling for this jobId to prevent leaks
+    const existingInterval = pollingIntervalsRef.current.get(jobId);
+    if (existingInterval) {
+      clearInterval(existingInterval);
+      pollingIntervalsRef.current.delete(jobId);
+    }
+
     const pollInterval = setInterval(async () => {
       try {
         const { data, error } = await supabase.functions.invoke('poll-transcript-job', {
@@ -224,7 +234,13 @@ export const useVideoProcessing = () => {
       setProcessingStep('Analyzing content with AI...');
       const { vocabulary, grammar, detectedLanguage: aiDetectedLang } = await analyzeContentWithAI(transcript);
 
-      const finalLanguage = selectedLanguageName || aiDetectedLang;
+      const finalLanguage = selectedLanguageName && selectedLanguageName !== 'Other'
+        ? selectedLanguageName
+        : aiDetectedLang;
+
+      if (vocabulary.length === 0 && grammar.length === 0) {
+        Alert.alert('Analysis incomplete', 'AI could not extract vocabulary or grammar from this video. The transcript has been saved — you can try regenerating later.');
+      }
 
       let practiceSentences: PracticeSentence[] = [];
       if (vocabulary.length > 0 && grammar.length > 0) {

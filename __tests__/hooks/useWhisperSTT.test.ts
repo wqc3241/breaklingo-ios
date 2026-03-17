@@ -1,5 +1,5 @@
 import { renderHook, act } from '@testing-library/react-native';
-import { Audio } from 'expo-av';
+import { NativeModules } from 'react-native';
 import { useWhisperSTT } from '../../src/hooks/useWhisperSTT';
 
 describe('useWhisperSTT', () => {
@@ -26,11 +26,8 @@ describe('useWhisperSTT', () => {
       await result.current.startListening();
     });
 
-    expect(Audio.requestPermissionsAsync).toHaveBeenCalled();
-    expect(Audio.setAudioModeAsync).toHaveBeenCalledWith({
-      allowsRecordingIOS: true,
-      playsInSilentModeIOS: true,
-    });
+    expect(NativeModules.AudioRecorderModule.requestPermission).toHaveBeenCalled();
+    expect(NativeModules.AudioRecorderModule.startRecording).toHaveBeenCalled();
     expect(result.current.isListening).toBe(true);
   });
 
@@ -51,7 +48,7 @@ describe('useWhisperSTT', () => {
     expect(result.current.finalTranscript).toBe('transcribed text');
   });
 
-  it('returns empty string when no recording exists', async () => {
+  it('returns empty string when not listening', async () => {
     const { result } = renderHook(() => useWhisperSTT());
 
     let transcript: string = '';

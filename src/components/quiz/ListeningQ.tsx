@@ -41,7 +41,7 @@ const ListeningQ: React.FC<Props> = ({ question, onAnswer }) => {
       </TouchableOpacity>
 
       <View style={styles.optionsContainer}>
-        {question.options.map((option, index) => {
+        {(question.options || []).map((option, index) => {
           let optionStyle = styles.optionDefault;
           let textStyle = styles.optionTextDefault;
 

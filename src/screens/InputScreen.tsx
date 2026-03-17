@@ -8,12 +8,11 @@ import {
   Alert,
   ActivityIndicator,
   ScrollView,
-  Modal,
-  FlatList,
   Image,
   Keyboard,
+  Dimensions,
 } from 'react-native';
-import { Search, Clock, X, ChevronDown, ChevronRight, Play, Check } from 'lucide-react-native';
+import { Search, Clock, X, ChevronDown, ChevronRight, Play, BookOpen } from 'lucide-react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import { useVideoProcessing } from '../hooks/useVideoProcessing';
@@ -21,24 +20,26 @@ import { useProjectContext } from '../context/ProjectContext';
 import { useAuth } from '../hooks/useAuth';
 import { useYouTubeSearch } from '../hooks/useYouTubeSearch';
 import { useSearchHistory } from '../hooks/useSearchHistory';
-import { LANGUAGES, LANGUAGE_CODE_MAP } from '../lib/constants';
-import { getRecommendationsByLanguage, CURATED_VIDEOS } from '../lib/recommendedVideos';
+import { TEST_TRANSCRIPT, TEST_VIDEO_TITLE, TEST_VIDEO_URL } from '../lib/constants';
+import { getRecommendationsByLanguage } from '../lib/recommendedVideos';
 import type { YouTubeSearchResult, CuratedVideo } from '../lib/types';
+
+const SCREEN_WIDTH = Dimensions.get('window').width;
+const CARD_GAP = 10;
+const CARD_PADDING = 16;
+const CARD_WIDTH = (SCREEN_WIDTH - CARD_PADDING * 2 - CARD_GAP) / 2;
 
 const InputScreen: React.FC = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [youtubeUrl, setYoutubeUrl] = useState('');
-  const [showLanguagePicker, setShowLanguagePicker] = useState(false);
-  const [selectedLanguage, setSelectedLanguage] = useState('');
-  const [pendingVideoId, setPendingVideoId] = useState('');
   const [showUrlInput, setShowUrlInput] = useState(false);
   const [selectedRecLang, setSelectedRecLang] = useState('Japanese');
   const [showHistory, setShowHistory] = useState(false);
   const navigation = useNavigation<any>();
 
   const { user } = useAuth();
-  const { isProcessing, processingStep, extractVideoId, processVideo, cleanup } = useVideoProcessing();
-  const { setCurrentProject, autoSaveProject } = useProjectContext();
+  const { isProcessing, processingStep, extractVideoId, processVideo, analyzeContentWithAI, generatePracticeSentences, setIsProcessing, setProcessingStep, cleanup } = useVideoProcessing();
+  const { currentProject, setCurrentProject, autoSaveProject } = useProjectContext();
   const { results, isSearching, hasSearched, search, clearSearch } = useYouTubeSearch();
   const { history, addToHistory, removeFromHistory, clearHistory } = useSearchHistory();
 
@@ -63,37 +64,14 @@ const InputScreen: React.FC = () => {
     await search(query);
   }, [search, addToHistory]);
 
-  const handleVideoSelect = (videoId: string) => {
-    setPendingVideoId(videoId);
-    setShowLanguagePicker(true);
-    setSelectedLanguage('');
-  };
-
-  const handleUrlSubmit = () => {
-    if (!youtubeUrl.trim()) {
-      Alert.alert('Error', 'Please enter a YouTube URL');
-      return;
-    }
-
-    const videoId = extractVideoId(youtubeUrl.trim());
-    if (!videoId) {
-      Alert.alert('Invalid URL', 'Please enter a valid YouTube video URL');
-      return;
-    }
-
-    handleVideoSelect(videoId);
-  };
-
-  const handleLanguageSelected = async () => {
-    if (!pendingVideoId || !selectedLanguage) return;
-    setShowLanguagePicker(false);
+  const handleVideoSelect = async (videoId: string) => {
+    if (isProcessing) return;
 
     try {
-      const languageCode = LANGUAGE_CODE_MAP[selectedLanguage];
       const project = await processVideo(
-        pendingVideoId,
-        languageCode,
-        selectedLanguage,
+        videoId,
+        undefined, // auto-detect language
+        undefined,
         user?.id,
         (updatedProject) => {
           setCurrentProject(updatedProject);
@@ -112,44 +90,96 @@ const InputScreen: React.FC = () => {
     }
   };
 
+  const handleUrlSubmit = () => {
+    if (!youtubeUrl.trim()) {
+      Alert.alert('Error', 'Please enter a YouTube URL');
+      return;
+    }
+
+    const videoId = extractVideoId(youtubeUrl.trim());
+    if (!videoId) {
+      Alert.alert('Invalid URL', 'Please enter a valid YouTube video URL');
+      return;
+    }
+
+    handleVideoSelect(videoId);
+  };
+
+  const handleUseTestData = async () => {
+    if (isProcessing) return;
+    setIsProcessing(true);
+    try {
+      setProcessingStep('Loading test transcript...');
+      const transcript = TEST_TRANSCRIPT;
+
+      setProcessingStep('Analyzing content with AI...');
+      const { vocabulary, grammar, detectedLanguage } = await analyzeContentWithAI(transcript);
+
+      setProcessingStep('Generating practice sentences...');
+      const practiceSentences = await generatePracticeSentences(vocabulary, grammar, detectedLanguage);
+
+      const project = {
+        id: Date.now(),
+        title: TEST_VIDEO_TITLE,
+        url: TEST_VIDEO_URL,
+        script: transcript,
+        vocabulary,
+        grammar,
+        detectedLanguage,
+        practiceSentences,
+        status: 'completed' as const,
+        userId: user?.id,
+      };
+
+      setCurrentProject(project);
+      await autoSaveProject(project);
+      Alert.alert('Demo loaded', `Lesson ready for study. Language: ${detectedLanguage}`);
+      navigation.navigate('MoreTab', { screen: 'Study' });
+    } catch {
+      Alert.alert('Loading failed', 'Could not load demo data');
+    } finally {
+      setIsProcessing(false);
+      setProcessingStep('');
+    }
+  };
+
   const recommendedByLanguage = getRecommendationsByLanguage();
   const recLanguages = Object.keys(recommendedByLanguage);
 
-  const renderVideoCard = ({ item }: { item: YouTubeSearchResult }) => (
+  const renderVideoCardGrid = (item: YouTubeSearchResult) => (
     <TouchableOpacity
-      style={styles.videoCard}
+      key={item.videoId}
+      style={styles.videoCardGrid}
       onPress={() => handleVideoSelect(item.videoId)}
       disabled={isProcessing}
     >
       <Image
         source={{ uri: item.thumbnailUrl }}
-        style={styles.thumbnail}
+        style={styles.thumbnailGrid}
         resizeMode="cover"
       />
-      <View style={styles.videoInfo}>
-        <Text style={styles.videoTitle} numberOfLines={2}>{item.title}</Text>
-        <Text style={styles.videoChannel}>{item.channelTitle}</Text>
-        <Text style={styles.videoDate}>
-          {new Date(item.publishedAt).toLocaleDateString()}
-        </Text>
+      <View style={styles.videoInfoGrid}>
+        <Text style={styles.videoTitleGrid} numberOfLines={2}>{item.title}</Text>
+        <Text style={styles.videoChannelGrid} numberOfLines={1}>{item.channelTitle}</Text>
       </View>
     </TouchableOpacity>
   );
 
-  const renderCuratedCard = ({ item }: { item: CuratedVideo }) => (
+  const renderCuratedCardGrid = (item: CuratedVideo) => (
     <TouchableOpacity
-      style={styles.curatedCard}
+      key={item.videoId}
+      style={styles.videoCardGrid}
       onPress={() => handleVideoSelect(item.videoId)}
       disabled={isProcessing}
     >
       <Image
         source={{ uri: item.thumbnailUrl }}
-        style={styles.curatedThumbnail}
+        style={styles.thumbnailGrid}
         resizeMode="cover"
       />
-      <View style={styles.curatedInfo}>
-        <Text style={styles.curatedTitle} numberOfLines={2}>{item.title}</Text>
-        <Text style={styles.curatedChannel}>{item.channelTitle}</Text>
+      <View style={styles.videoInfoGrid}>
+        <Text style={styles.videoTitleGrid} numberOfLines={2}>{item.title}</Text>
+        <Text style={styles.videoChannelGrid} numberOfLines={1}>{item.channelTitle}</Text>
         <View style={styles.curatedMeta}>
           <View style={[styles.levelBadge, {
             backgroundColor: item.level === 'beginner' ? '#D1FAE5' : item.level === 'intermediate' ? '#FEF3C7' : '#FEE2E2',
@@ -169,6 +199,29 @@ const InputScreen: React.FC = () => {
         contentContainerStyle={styles.scrollContent}
         keyboardShouldPersistTaps="handled"
       >
+        {/* Current Lesson Indicator */}
+        {currentProject && (
+          <TouchableOpacity
+            style={styles.lessonBanner}
+            onPress={() => navigation.navigate('MoreTab', { screen: 'Study' })}
+          >
+            <BookOpen size={16} color="#E8550C" />
+            <View style={styles.lessonBannerInfo}>
+              <Text style={styles.lessonBannerLabel}>CURRENT LESSON</Text>
+              <Text style={styles.lessonBannerTitle} numberOfLines={1}>
+                {currentProject.title || 'No lesson selected'}
+              </Text>
+            </View>
+            <Text style={styles.lessonBannerStatus}>
+              {currentProject.status === 'pending'
+                ? 'Processing...'
+                : currentProject.status === 'failed'
+                ? 'Failed'
+                : 'Ready'}
+            </Text>
+          </TouchableOpacity>
+        )}
+
         {/* Search Bar */}
         <View style={styles.searchCard}>
           <View style={styles.searchRow}>
@@ -200,7 +253,7 @@ const InputScreen: React.FC = () => {
               {isSearching ? (
                 <ActivityIndicator color="#fff" size="small" />
               ) : (
-                <Text style={styles.searchButtonText}>Go</Text>
+                <Text style={styles.searchButtonText}>Search</Text>
               )}
             </TouchableOpacity>
           </View>
@@ -241,9 +294,10 @@ const InputScreen: React.FC = () => {
           style={styles.urlToggle}
           onPress={() => setShowUrlInput(!showUrlInput)}
         >
-          <Text style={styles.urlToggleText}>
-            {showUrlInput ? '▾ Hide URL input' : '▸ Paste YouTube URL instead'}
-          </Text>
+          <View style={{flexDirection: 'row', alignItems: 'center', gap: 4}}>
+            {showUrlInput ? <ChevronDown size={14} color="#E8550C" /> : <ChevronRight size={14} color="#E8550C" />}
+            <Text style={{color: '#E8550C', fontSize: 14}}>{showUrlInput ? 'Hide URL input' : 'Paste YouTube URL instead'}</Text>
+          </View>
         </TouchableOpacity>
 
         {showUrlInput && (
@@ -270,15 +324,18 @@ const InputScreen: React.FC = () => {
           </View>
         )}
 
-        {/* Search Results */}
+        {/* Search Results — 2-column grid */}
         {hasSearched && results.length > 0 && (
           <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Search Results</Text>
-            {results.map((item) => (
-              <React.Fragment key={item.videoId}>
-                {renderVideoCard({ item })}
-              </React.Fragment>
-            ))}
+            <View style={styles.searchResultsHeader}>
+              <Text style={styles.resultCount}>{results.length} results found</Text>
+              <TouchableOpacity onPress={() => { clearSearch(); setSearchQuery(''); }}>
+                <Text style={styles.clearSearchText}>Clear search</Text>
+              </TouchableOpacity>
+            </View>
+            <View style={styles.gridContainer}>
+              {results.map((item) => renderVideoCardGrid(item))}
+            </View>
           </View>
         )}
 
@@ -314,75 +371,14 @@ const InputScreen: React.FC = () => {
                 </TouchableOpacity>
               ))}
             </ScrollView>
-            {(recommendedByLanguage[selectedRecLang] || []).map((item) => (
-              <React.Fragment key={item.videoId}>
-                {renderCuratedCard({ item })}
-              </React.Fragment>
-            ))}
+            <View style={styles.gridContainer}>
+              {(recommendedByLanguage[selectedRecLang] || []).map((item) =>
+                renderCuratedCardGrid(item)
+              )}
+            </View>
           </View>
         )}
       </ScrollView>
-
-      {/* Language Picker Modal */}
-      <Modal
-        visible={showLanguagePicker}
-        transparent
-        animationType="slide"
-      >
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            <Text style={styles.modalTitle}>Select Language</Text>
-            <Text style={styles.modalSubtitle}>
-              Choose the language you want to learn from this video
-            </Text>
-            <FlatList
-              data={[...LANGUAGES, { code: 'other', name: 'Other' }]}
-              keyExtractor={(item) => item.code}
-              renderItem={({ item }) => (
-                <TouchableOpacity
-                  style={[
-                    styles.languageItem,
-                    selectedLanguage === item.name && styles.languageItemSelected,
-                  ]}
-                  onPress={() => setSelectedLanguage(item.name)}
-                >
-                  <Text
-                    style={[
-                      styles.languageText,
-                      selectedLanguage === item.name && styles.languageTextSelected,
-                    ]}
-                  >
-                    {item.name}
-                  </Text>
-                  {selectedLanguage === item.name && (
-                    <Check size={14} color="#065F46" />
-                  )}
-                </TouchableOpacity>
-              )}
-              style={styles.languageList}
-            />
-            <View style={styles.modalButtons}>
-              <TouchableOpacity
-                style={[styles.modalButton, styles.primaryButton, !selectedLanguage && styles.disabledButton]}
-                onPress={handleLanguageSelected}
-                disabled={!selectedLanguage}
-              >
-                <Text style={styles.modalButtonTextWhite}>Continue</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[styles.modalButton, styles.outlineButton]}
-                onPress={() => {
-                  setShowLanguagePicker(false);
-                  setSelectedLanguage('');
-                  setPendingVideoId('');
-                }}
-              >
-                <Text style={styles.modalButtonTextDark}>Cancel</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-        </View>
-      </Modal>
     </SafeAreaView>
   );
 };
@@ -393,8 +389,38 @@ const styles = StyleSheet.create({
     backgroundColor: '#F5F5F5',
   },
   scrollContent: {
-    padding: 16,
+    padding: CARD_PADDING,
     paddingBottom: 40,
+  },
+  // Current lesson banner
+  lessonBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FFF5EA',
+    borderRadius: 12,
+    padding: 12,
+    marginBottom: 10,
+    gap: 10,
+  },
+  lessonBannerInfo: {
+    flex: 1,
+  },
+  lessonBannerLabel: {
+    fontSize: 10,
+    fontWeight: '600',
+    color: '#A1A1A1',
+    letterSpacing: 0.5,
+  },
+  lessonBannerTitle: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#171717',
+    marginTop: 1,
+  },
+  lessonBannerStatus: {
+    fontSize: 12,
+    color: '#E8550C',
+    fontWeight: '500',
   },
   // Search
   searchCard: {
@@ -413,9 +439,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 8,
   },
-  searchIcon: {
-    fontSize: 16,
-  },
   searchInput: {
     flex: 1,
     backgroundColor: '#F5F5F5',
@@ -423,11 +446,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
     paddingVertical: 10,
     fontSize: 16,
-  },
-  clearButton: {
-    fontSize: 16,
-    color: '#A1A1A1',
-    padding: 4,
   },
   searchButton: {
     backgroundColor: '#E8550C',
@@ -456,18 +474,10 @@ const styles = StyleSheet.create({
     paddingHorizontal: 4,
     gap: 8,
   },
-  historyIcon: {
-    fontSize: 14,
-  },
   historyText: {
     flex: 1,
     fontSize: 15,
     color: '#525252',
-  },
-  historyRemove: {
-    fontSize: 14,
-    color: '#A1A1A1',
-    padding: 4,
   },
   clearHistoryButton: {
     alignItems: 'center',
@@ -497,10 +507,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 4,
     marginBottom: 4,
   },
-  urlToggleText: {
-    fontSize: 14,
-    color: '#E8550C',
-  },
   urlCard: {
     backgroundColor: '#fff',
     borderRadius: 12,
@@ -528,14 +534,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  submitButtonText: {
-    color: '#fff',
-    fontSize: 18,
-  },
   disabledButton: {
     opacity: 0.5,
   },
-  // Video Cards
+  // Section
   section: {
     marginTop: 8,
   },
@@ -545,74 +547,61 @@ const styles = StyleSheet.create({
     color: '#000',
     marginBottom: 12,
   },
-  videoCard: {
-    backgroundColor: '#fff',
-    borderRadius: 12,
-    marginBottom: 10,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.04,
-    shadowRadius: 3,
-    elevation: 1,
-    overflow: 'hidden',
-  },
-  thumbnail: {
-    width: '100%',
-    height: 180,
-    backgroundColor: '#D4D4D4',
-  },
-  videoInfo: {
-    padding: 12,
-  },
-  videoTitle: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#000',
-    marginBottom: 4,
-  },
-  videoChannel: {
-    fontSize: 14,
-    color: '#A1A1A1',
-    marginBottom: 2,
-  },
-  videoDate: {
-    fontSize: 12,
-    color: '#D4D4D4',
-  },
-  // Curated Videos
-  curatedCard: {
-    backgroundColor: '#fff',
-    borderRadius: 12,
-    marginBottom: 10,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.04,
-    shadowRadius: 3,
-    elevation: 1,
-    overflow: 'hidden',
+  // Search results header
+  searchResultsHeader: {
     flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 12,
   },
-  curatedThumbnail: {
-    width: 120,
-    height: 90,
+  resultCount: {
+    fontSize: 14,
+    color: '#525252',
+  },
+  clearSearchText: {
+    fontSize: 14,
+    color: '#E8550C',
+    fontWeight: '500',
+  },
+  // 2-column grid
+  gridContainer: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: CARD_GAP,
+  },
+  videoCardGrid: {
+    width: CARD_WIDTH,
+    backgroundColor: '#fff',
+    borderRadius: 12,
+    marginBottom: 2,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.04,
+    shadowRadius: 3,
+    elevation: 1,
+    overflow: 'hidden',
+  },
+  thumbnailGrid: {
+    width: '100%',
+    height: CARD_WIDTH * 0.6,
     backgroundColor: '#D4D4D4',
   },
-  curatedInfo: {
-    flex: 1,
-    padding: 10,
-    justifyContent: 'center',
+  videoInfoGrid: {
+    padding: 8,
   },
-  curatedTitle: {
-    fontSize: 14,
+  videoTitleGrid: {
+    fontSize: 13,
     fontWeight: '600',
     color: '#000',
     marginBottom: 4,
+    lineHeight: 18,
   },
-  curatedChannel: {
-    fontSize: 12,
+  videoChannelGrid: {
+    fontSize: 11,
     color: '#A1A1A1',
-    marginBottom: 6,
+    marginBottom: 4,
   },
+  // Curated
   curatedMeta: {
     flexDirection: 'row',
     gap: 6,
@@ -660,84 +649,6 @@ const styles = StyleSheet.create({
   emptyResultsText: {
     fontSize: 15,
     color: '#A1A1A1',
-  },
-  // Modal
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.4)',
-    justifyContent: 'flex-end',
-  },
-  modalContent: {
-    backgroundColor: '#fff',
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
-    padding: 20,
-    maxHeight: '70%',
-  },
-  modalTitle: {
-    fontSize: 20,
-    fontWeight: '700',
-    marginBottom: 4,
-  },
-  modalSubtitle: {
-    fontSize: 14,
-    color: '#A1A1A1',
-    marginBottom: 16,
-  },
-  languageList: {
-    maxHeight: 300,
-  },
-  languageItem: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingVertical: 14,
-    paddingHorizontal: 16,
-    borderRadius: 10,
-    marginBottom: 4,
-  },
-  languageItemSelected: {
-    backgroundColor: '#FFF5EA',
-  },
-  languageText: {
-    fontSize: 16,
-    color: '#000',
-  },
-  languageTextSelected: {
-    color: '#E8550C',
-    fontWeight: '600',
-  },
-  checkmark: {
-    fontSize: 16,
-    color: '#E8550C',
-    fontWeight: '600',
-  },
-  modalButtons: {
-    flexDirection: 'row',
-    gap: 12,
-    marginTop: 16,
-  },
-  modalButton: {
-    flex: 1,
-    borderRadius: 12,
-    paddingVertical: 14,
-    alignItems: 'center',
-  },
-  primaryButton: {
-    backgroundColor: '#E8550C',
-  },
-  outlineButton: {
-    backgroundColor: '#F5F5F5',
-  },
-  modalButtonTextWhite: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: '600',
-  },
-  modalButtonTextDark: {
-    color: '#000',
-    fontSize: 16,
-    fontWeight: '500',
   },
 });
 

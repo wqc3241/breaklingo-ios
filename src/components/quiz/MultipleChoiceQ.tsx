@@ -23,7 +23,7 @@ const MultipleChoiceQ: React.FC<Props> = ({ question, onAnswer }) => {
       )}
       <Text style={styles.questionText}>{question.question}</Text>
       <View style={styles.optionsContainer}>
-        {question.options.map((option, index) => {
+        {(question.options || []).map((option, index) => {
           let optionStyle = styles.optionDefault;
           let textStyle = styles.optionTextDefault;
 

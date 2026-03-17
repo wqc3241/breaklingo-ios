@@ -103,7 +103,7 @@ describe('mapDbUnitToLearningUnit', () => {
   it('provides defaults for missing fields', () => {
     const minimal = { id: 'u1', project_id: 'p1' };
     const result = mapDbUnitToLearningUnit(minimal, 'Project');
-    expect(result.title).toBe('Unit 0');
+    expect(result.title).toBe('Unit u1');
     expect(result.description).toBe('');
     expect(result.difficulty).toBe('beginner');
     expect(result.order).toBe(0);

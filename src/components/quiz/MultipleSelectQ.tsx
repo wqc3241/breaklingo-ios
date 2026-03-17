@@ -42,7 +42,7 @@ const MultipleSelectQ: React.FC<Props> = ({ question, onAnswer }) => {
       <Text style={styles.hintText}>Select all that apply</Text>
 
       <View style={styles.optionsContainer}>
-        {question.options.map((option, index) => {
+        {(question.options || []).map((option, index) => {
           const isSelected = selectedAnswers.has(option);
           const isCorrectOption = correctSet.has(option);
 

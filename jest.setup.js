@@ -5,13 +5,23 @@
 // jest.spyOn(console, 'error').mockImplementation(() => {});
 jest.spyOn(console, 'log').mockImplementation(() => {});
 
-// Mock react-native Alert and Linking at the top-level react-native module
+// Mock react-native Alert, Linking, and NativeModules at the top-level react-native module
 jest.mock('react-native', () => {
   const RN = jest.requireActual('react-native');
   RN.Alert.alert = jest.fn();
   RN.Linking.openURL = jest.fn();
   RN.Linking.addEventListener = jest.fn();
   RN.Linking.removeEventListener = jest.fn();
+  RN.NativeModules.AudioPlayerModule = {
+    playBase64: jest.fn(() => Promise.resolve(true)),
+    stop: jest.fn(() => Promise.resolve(true)),
+    isPlaying: jest.fn(() => Promise.resolve(false)),
+  };
+  RN.NativeModules.AudioRecorderModule = {
+    requestPermission: jest.fn(() => Promise.resolve(true)),
+    startRecording: jest.fn(() => Promise.resolve(true)),
+    stopRecording: jest.fn(() => Promise.resolve('file://test-recording.m4a')),
+  };
   return RN;
 });
 
@@ -67,6 +77,7 @@ const mockSupabaseAuth = {
   signUp: jest.fn(() => Promise.resolve({ data: {}, error: null })),
   signOut: jest.fn(() => Promise.resolve()),
   signInWithOAuth: jest.fn(() => Promise.resolve({ data: { url: 'https://test.com' }, error: null })),
+  signInWithIdToken: jest.fn(() => Promise.resolve({ data: { session: { access_token: 'apple-token' } }, error: null })),
   resetPasswordForEmail: jest.fn(() => Promise.resolve({ error: null })),
   setSession: jest.fn(() => Promise.resolve({ data: {}, error: null })),
   exchangeCodeForSession: jest.fn(() => Promise.resolve({ data: {}, error: null })),
@@ -99,7 +110,7 @@ jest.mock('./src/lib/supabase', () => ({
   SUPABASE_ANON_KEY: 'test-anon-key',
 }));
 
-// Mock expo-av
+// Mock expo-av (removed from project but still referenced in some mocks)
 jest.mock('expo-av', () => {
   const mockSound = {
     unloadAsync: jest.fn(() => Promise.resolve()),
@@ -129,7 +140,7 @@ jest.mock('expo-av', () => {
       setAudioModeAsync: jest.fn(() => Promise.resolve()),
     },
   };
-});
+}, { virtual: true });
 
 // Mock react-native-safe-area-context
 jest.mock('react-native-safe-area-context', () => {
@@ -188,6 +199,22 @@ jest.mock('react-native-inappbrowser-reborn', () => ({
   },
 }));
 
+// Mock @invertase/react-native-apple-authentication
+jest.mock('@invertase/react-native-apple-authentication', () => ({
+  appleAuth: {
+    isSupported: true,
+    Operation: { LOGIN: 1 },
+    Scope: { EMAIL: 0, FULL_NAME: 1 },
+    performRequest: jest.fn(() =>
+      Promise.resolve({
+        identityToken: 'mock-apple-identity-token',
+        nonce: 'mock-nonce',
+        user: 'mock-apple-user-id',
+      })
+    ),
+  },
+}));
+
 // Mock react-native-url-polyfill
 jest.mock('react-native-url-polyfill/auto', () => {});
 
@@ -214,18 +241,10 @@ global.fetch = jest.fn(() =>
       Promise.resolve({
         type: 'audio/mp3',
       }),
+    arrayBuffer: () =>
+      Promise.resolve(new ArrayBuffer(8)),
   })
 );
-
-// Mock FileReader
-global.FileReader = class {
-  readAsDataURL() {
-    setTimeout(() => {
-      this.result = 'data:audio/mp3;base64,dGVzdA==';
-      this.onload && this.onload();
-    }, 0);
-  }
-};
 
 // Export mocks for test access
 global.__mockSupabaseAuth = mockSupabaseAuth;

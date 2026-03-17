@@ -120,6 +120,8 @@ export const ProjectProvider: React.FC<ProjectProviderProps> = ({ user, children
         userId: p.user_id,
         errorMessage: p.error_message,
         isFavorite: p.is_favorite || false,
+        lastAccessed: p.last_accessed || null,
+        updatedAt: p.updated_at || null,
       }));
     } catch (error) {
       console.error('Failed to fetch projects:', error);

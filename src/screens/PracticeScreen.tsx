@@ -9,7 +9,7 @@ import {
   Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { MessageCircle, Volume2, FileText } from 'lucide-react-native';
+import { MessageCircle, Volume2, FileText, RefreshCw } from 'lucide-react-native';
 import { useProjectContext } from '../context/ProjectContext';
 import { useTextToSpeech } from '../hooks/useTextToSpeech';
 import { supabase } from '../lib/supabase';
@@ -21,7 +21,7 @@ const PracticeScreen: React.FC = () => {
   const [difficultyFilter, setDifficultyFilter] = useState<DifficultyFilter>('all');
   const [practiceSentences, setPracticeSentences] = useState<PracticeSentence[]>([]);
   const [isGenerating, setIsGenerating] = useState(false);
-  const { currentProject } = useProjectContext();
+  const { currentProject, setCurrentProject, autoSaveProject } = useProjectContext();
   const { speak, isPlaying, currentText } = useTextToSpeech();
 
   useEffect(() => {
@@ -52,6 +52,12 @@ const PracticeScreen: React.FC = () => {
 
       if (data?.sentences?.length > 0) {
         setPracticeSentences(data.sentences);
+        // Persist generated sentences to project context and database
+        if (currentProject) {
+          const updated = { ...currentProject, practiceSentences: data.sentences };
+          setCurrentProject(updated);
+          await autoSaveProject(updated);
+        }
         Alert.alert('Success', `Created ${data.sentences.length} sentences for practice.`);
       } else {
         Alert.alert('No sentences', 'Try again or check if vocabulary and grammar are available.');
@@ -85,9 +91,11 @@ const PracticeScreen: React.FC = () => {
     return (
       <SafeAreaView style={styles.container} edges={['bottom']}>
         <View style={styles.emptyState}>
-          <View style={styles.emptyIcon}><MessageCircle size={48} color="#A1A1A1" /></View>
+          <View style={styles.emptyIconCircle}><MessageCircle size={36} color="#E8550C" /></View>
           <Text style={styles.emptyTitle}>No practice sentences</Text>
-          <Text style={styles.emptySubtitle}>Add a video first to generate practice content</Text>
+          <Text style={styles.emptySubtitle}>
+            Search for a YouTube video first, then come back here to practice sentences
+          </Text>
         </View>
       </SafeAreaView>
     );
@@ -125,7 +133,7 @@ const PracticeScreen: React.FC = () => {
           {(item.usedVocabulary?.length || 0) > 3 && (
             <View style={[styles.badge, { backgroundColor: '#F3F4F6' }]}>
               <Text style={[styles.badgeText, { color: '#374151' }]}>
-                +{item.usedVocabulary.length - 3}
+                +{item.usedVocabulary!.length - 3}
               </Text>
             </View>
           )}
@@ -146,7 +154,10 @@ const PracticeScreen: React.FC = () => {
           {isGenerating ? (
             <ActivityIndicator size="small" color="#E8550C" />
           ) : (
-            <Text style={styles.generateText}>↻ Generate</Text>
+            <View style={{flexDirection: 'row', alignItems: 'center', gap: 4}}>
+              <RefreshCw size={14} color="#E8550C" />
+              <Text style={styles.generateText}>Generate</Text>
+            </View>
           )}
         </TouchableOpacity>
       </View>
@@ -326,6 +337,15 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     paddingHorizontal: 32,
+  },
+  emptyIconCircle: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    backgroundColor: '#FFF5EA',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 16,
   },
   emptyIcon: {
     fontSize: 48,

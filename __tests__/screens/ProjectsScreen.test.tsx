@@ -12,7 +12,7 @@ jest.mock('@react-navigation/native', () => ({
   useRoute: () => ({ params: {} }),
 }));
 
-const mockFetchProjects = jest.fn(() => Promise.resolve([]));
+const mockFetchProjects = jest.fn(() => Promise.resolve([] as any[]));
 const mockSetCurrentProject = jest.fn();
 const mockDeleteProject = jest.fn();
 const mockToggleFavorite = jest.fn();
@@ -26,22 +26,6 @@ jest.mock('../../src/context/ProjectContext', () => ({
   }),
 }));
 
-jest.mock('../../src/hooks/useAuth', () => ({
-  useAuth: () => ({
-    user: { id: 'user-1', email: 'test@test.com' },
-    handleLogout: jest.fn(),
-  }),
-}));
-
-jest.mock('../../src/components/common/FeedbackDialog', () => {
-  const React = require('react');
-  const { View } = require('react-native');
-  return {
-    FeedbackDialog: (props: any) =>
-      props.visible ? React.createElement(View, { testID: 'feedback-dialog' }) : null,
-  };
-});
-
 describe('ProjectsScreen', () => {
   beforeEach(() => {
     jest.clearAllMocks();
@@ -51,16 +35,6 @@ describe('ProjectsScreen', () => {
   it('renders search input', () => {
     const { getByPlaceholderText } = render(<ProjectsScreen />);
     expect(getByPlaceholderText('Search projects...')).toBeTruthy();
-  });
-
-  it('renders Send Feedback button', () => {
-    const { getByText } = render(<ProjectsScreen />);
-    expect(getByText('Send Feedback')).toBeTruthy();
-  });
-
-  it('renders Sign Out button', () => {
-    const { getByText } = render(<ProjectsScreen />);
-    expect(getByText('Sign Out')).toBeTruthy();
   });
 
   it('shows empty state when no projects loaded', async () => {

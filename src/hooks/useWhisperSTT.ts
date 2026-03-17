@@ -1,53 +1,45 @@
-import { useState, useRef, useCallback } from 'react';
-import { Alert } from 'react-native';
-import { Audio } from 'expo-av';
+import { useState, useCallback } from 'react';
+import { Alert, NativeModules } from 'react-native';
 import { supabase, SUPABASE_URL } from '../lib/supabase';
+
+const { AudioRecorderModule } = NativeModules;
 
 export const useWhisperSTT = () => {
   const [isListening, setIsListening] = useState(false);
   const [transcript, setTranscript] = useState('');
   const [finalTranscript, setFinalTranscript] = useState('');
   const [isTranscribing, setIsTranscribing] = useState(false);
-  const recordingRef = useRef<Audio.Recording | null>(null);
 
   const startListening = useCallback(async () => {
     try {
-      const { status } = await Audio.requestPermissionsAsync();
-      if (status !== 'granted') {
+      if (!AudioRecorderModule) {
+        Alert.alert('Error', 'Audio recording is not available on this device.');
+        return;
+      }
+
+      const granted = await AudioRecorderModule.requestPermission();
+      if (!granted) {
         Alert.alert('Permission needed', 'Microphone access is required for voice conversation.');
         return;
       }
 
-      await Audio.setAudioModeAsync({
-        allowsRecordingIOS: true,
-        playsInSilentModeIOS: true,
-      });
-
-      const recording = new Audio.Recording();
-      await recording.prepareToRecordAsync(Audio.RecordingOptionsPresets.HIGH_QUALITY);
-      await recording.startAsync();
-      recordingRef.current = recording;
+      await AudioRecorderModule.startRecording();
       setIsListening(true);
       setTranscript('');
       setFinalTranscript('');
     } catch (error) {
       console.error('Failed to start listening:', error);
-      Alert.alert('Error', 'Could not start microphone');
+      Alert.alert('Error', 'Could not start microphone. Please check microphone permissions in Settings.');
     }
   }, []);
 
   const stopListening = useCallback(async (): Promise<string> => {
-    if (!recordingRef.current) return '';
+    if (!isListening) return '';
 
     try {
       setIsListening(false);
-      await recordingRef.current.stopAndUnloadAsync();
-      const uri = recordingRef.current.getURI();
-      recordingRef.current = null;
-
-      await Audio.setAudioModeAsync({
-        allowsRecordingIOS: false,
-      });
+      if (!AudioRecorderModule) return '';
+      const uri = await AudioRecorderModule.stopRecording();
 
       if (!uri) return '';
 
@@ -84,21 +76,14 @@ export const useWhisperSTT = () => {
     } finally {
       setIsTranscribing(false);
     }
-  }, []);
+  }, [isListening]);
 
   const cancelListening = useCallback(async () => {
-    if (recordingRef.current) {
-      try {
-        await recordingRef.current.stopAndUnloadAsync();
-      } catch {}
-      recordingRef.current = null;
-    }
+    try {
+      if (AudioRecorderModule) await AudioRecorderModule.stopRecording();
+    } catch {}
     setIsListening(false);
     setTranscript('');
-
-    await Audio.setAudioModeAsync({
-      allowsRecordingIOS: false,
-    });
   }, []);
 
   return {

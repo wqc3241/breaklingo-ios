@@ -1,10 +1,11 @@
-import React, { useState, useRef } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, ActivityIndicator, Alert } from 'react-native';
-import { Audio } from 'expo-av';
+import React, { useState } from 'react';
+import { View, Text, TouchableOpacity, StyleSheet, ActivityIndicator, Alert, NativeModules } from 'react-native';
 import { Volume2, Mic, Square, Check, X } from 'lucide-react-native';
 import { useTextToSpeech } from '../../hooks/useTextToSpeech';
 import { supabase, SUPABASE_URL } from '../../lib/supabase';
 import type { QuizQuestion } from '../../lib/types';
+
+const { AudioRecorderModule } = NativeModules;
 
 interface Props {
   question: QuizQuestion;
@@ -17,7 +18,6 @@ const ReadAfterMeQ: React.FC<Props> = ({ question, onAnswer }) => {
   const [transcript, setTranscript] = useState<string | null>(null);
   const [similarity, setSimilarity] = useState<number | null>(null);
   const [submitted, setSubmitted] = useState(false);
-  const recordingRef = useRef<Audio.Recording | null>(null);
   const { speak, isPlaying } = useTextToSpeech();
 
   const targetText = question.targetText || question.originalText || question.correctAnswer;
@@ -30,40 +30,29 @@ const ReadAfterMeQ: React.FC<Props> = ({ question, onAnswer }) => {
 
   const startRecording = async () => {
     try {
-      const { status } = await Audio.requestPermissionsAsync();
-      if (status !== 'granted') {
+      if (!AudioRecorderModule) {
+        Alert.alert('Error', 'Audio recording is not available on this device.');
+        return;
+      }
+
+      const granted = await AudioRecorderModule.requestPermission();
+      if (!granted) {
         Alert.alert('Permission needed', 'Microphone access is required for this question type.');
         return;
       }
 
-      await Audio.setAudioModeAsync({
-        allowsRecordingIOS: true,
-        playsInSilentModeIOS: true,
-      });
-
-      const recording = new Audio.Recording();
-      await recording.prepareToRecordAsync(Audio.RecordingOptionsPresets.HIGH_QUALITY);
-      await recording.startAsync();
-      recordingRef.current = recording;
+      await AudioRecorderModule.startRecording();
       setIsRecording(true);
     } catch (error) {
       console.error('Failed to start recording:', error);
-      Alert.alert('Error', 'Could not start recording');
+      Alert.alert('Error', 'Could not start recording. Please check microphone permissions in Settings.');
     }
   };
 
   const stopRecording = async () => {
-    if (!recordingRef.current) return;
-
     try {
       setIsRecording(false);
-      await recordingRef.current.stopAndUnloadAsync();
-      const uri = recordingRef.current.getURI();
-      recordingRef.current = null;
-
-      await Audio.setAudioModeAsync({
-        allowsRecordingIOS: false,
-      });
+      const uri = await AudioRecorderModule.stopRecording();
 
       if (uri) {
         await transcribeAudio(uri);
@@ -220,9 +209,6 @@ const styles = StyleSheet.create({
   listenButtonActive: {
     backgroundColor: '#FFF5EA',
   },
-  listenIcon: {
-    fontSize: 18,
-  },
   listenText: {
     fontSize: 15,
     color: '#E8550C',
@@ -244,10 +230,6 @@ const styles = StyleSheet.create({
   },
   recordButtonActive: {
     backgroundColor: '#FF6B60',
-  },
-  recordIcon: {
-    fontSize: 28,
-    color: '#fff',
   },
   recordText: {
     fontSize: 12,

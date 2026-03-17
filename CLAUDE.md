@@ -11,7 +11,7 @@ BreakLingo iOS is a native React Native rebuild of the BreakLingo language learn
 - **Backend:** Supabase (auth, PostgreSQL, edge functions)
 - **Auth:** Supabase Auth (email/password + Google OAuth via InAppBrowser)
 - **Storage:** AsyncStorage for Supabase session persistence
-- **Audio:** expo-av for TTS playback
+- **Audio:** Native ObjC modules (`AudioPlayerModule`, `AudioRecorderModule`) via local CocoaPod at `ios/AudioModules/`
 - **Icons:** lucide-react-native (SVG icons via react-native-svg)
 - **Styling:** React Native StyleSheet (orange theme matching web app, no Tailwind)
 - **Package Manager:** npm
@@ -70,8 +70,8 @@ src/
 │   ├── useVideoProcessing.ts  # YouTube transcript pipeline (5 edge functions)
 │   ├── useProject.ts          # Project CRUD, auto-save, fetch, delete
 │   ├── useQuizData.ts         # Quiz question generation from vocab
-│   ├── useTextToSpeech.ts     # TTS via generate-speech edge function + expo-av
-│   ├── useConversation.ts     # AI conversation management for Talk screen
+│   ├── useTextToSpeech.ts     # TTS via generate-speech edge function + native AudioPlayerModule
+│   ├── useConversation.ts     # AI conversation management for Talk screen (uses messagesRef for stale closure safety)
 │   ├── useLearningUnits.ts    # Learning unit fetching/generation
 │   ├── useSearchHistory.ts    # YouTube search history persistence
 │   ├── useWhisperSTT.ts       # Speech-to-text via Whisper API
@@ -110,6 +110,8 @@ src/
 | `analyze-content` | AI analysis → vocabulary, grammar, detectedLanguage |
 | `generate-practice-sentences` | Generate practice sentences from vocab + grammar |
 | `generate-speech` | TTS audio generation (returns audio blob) |
+| `conversation-chat` | AI conversation — expects `{ messages, projectContext: { vocabulary, grammar, detectedLanguage, title } }` |
+| `conversation-summary` | Conversation summary after ending a session |
 
 ### Video Processing Pipeline
 
@@ -133,7 +135,7 @@ AppNavigator
     ├── LearnTab → LearnStack
     │   ├── LearnScreen
     │   └── QuizScreen (modal)
-    ├── TalkTab → TalkScreen
+    ├── TalkTab → TalkScreen (project selection → conversation → history views)
     └── MoreTab → MoreStack (popover menu to select)
         ├── StudyScreen
         ├── PracticeScreen
@@ -175,17 +177,26 @@ Status colors (correct/wrong, difficulty levels) are also in theme.ts.
 
 ## Key Configuration
 
-- **Bundle ID:** `org.reactjs.native.example.BreakLingoIOS` (default, change for production)
+- **Bundle ID:** `com.qichaowang.breaklingo`
 - **URL Scheme:** `com.breaklingo.app` (for OAuth deep linking, configured in Info.plist)
-- **DEV_TEST_MODE:** `true` in `src/lib/constants.ts` — auto-logs in with test account. Set to `false` for manual auth testing.
+- **DEV_TEST_MODE:** `false` in `src/lib/constants.ts` — set to `true` for auto-login with test account.
 
 ## Dev Notes
 
 - Metro dev server runs on port 8081
-- 213+ Jest tests across 30 test suites — run with `npm test`
+- 223+ Jest tests across 31 test suites — run with `npm test`
 - Test mocks for `lucide-react-native` and `react-native-svg` are in `jest.setup.js`
 - The `android/` directory exists but is untouched — this is iOS-focused
-- TTS audio uses `expo-av` which requires the expo modules CocoaPod — this is handled automatically
+- TTS/STT use native ObjC modules (`AudioPlayerModule`/`AudioRecorderModule`) — no Expo dependencies
+- Quiz scores persisted to AsyncStorage via `saveQuizScore`/`loadQuizScores` in QuizScreen.tsx
 - Google OAuth uses `react-native-inappbrowser-reborn` for ASWebAuthenticationSession on iOS
 - **Build sandbox fix:** If Xcode build fails with `Sandbox: rsync deny` errors, pass `ENABLE_USER_SCRIPT_SANDBOXING=NO` to xcodebuild, or clean DerivedData
 - After adding native dependencies (e.g., `react-native-svg`), must do a full native rebuild (`npx react-native run-ios`), not just a Metro JS reload
+
+## Prompt Queue Rule
+
+When new requests arrive in the Prompt Queue while a task is in progress:
+1. Add the pending prompt to `todo.md` (in the project root) so it is not forgotten
+2. Continue working on the current task to completion
+3. After completing the current task, check `todo.md` for the next prompt (in order)
+4. Mark completed items as done in `todo.md`

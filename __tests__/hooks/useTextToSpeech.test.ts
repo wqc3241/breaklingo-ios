@@ -1,5 +1,5 @@
 import { renderHook, act } from '@testing-library/react-native';
-import { Audio } from 'expo-av';
+import { NativeModules } from 'react-native';
 import { useTextToSpeech } from '../../src/hooks/useTextToSpeech';
 
 describe('useTextToSpeech', () => {
@@ -8,6 +8,7 @@ describe('useTextToSpeech', () => {
     (global.fetch as jest.Mock).mockResolvedValue({
       ok: true,
       blob: () => Promise.resolve({ type: 'audio/mp3' }),
+      arrayBuffer: () => Promise.resolve(new ArrayBuffer(8)),
     });
   });
 
@@ -33,16 +34,14 @@ describe('useTextToSpeech', () => {
     );
   });
 
-  it('creates and plays audio', async () => {
+  it('plays audio via native AudioPlayerModule', async () => {
     const { result } = renderHook(() => useTextToSpeech());
 
     await act(async () => {
       await result.current.speak('test');
-      // Let FileReader mock resolve
-      await new Promise((r) => setTimeout(r, 10));
     });
 
-    expect(Audio.Sound.createAsync).toHaveBeenCalled();
+    expect(NativeModules.AudioPlayerModule.playBase64).toHaveBeenCalled();
   });
 
   it('passes custom voice parameter', async () => {

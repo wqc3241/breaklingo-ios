@@ -65,9 +65,12 @@ describe('useConversation', () => {
     expect(supabase.functions.invoke).toHaveBeenCalledWith('conversation-chat', {
       body: expect.objectContaining({
         messages: [],
-        vocabulary: mockProject.vocabulary,
-        grammar: mockProject.grammar,
-        language: 'English',
+        projectContext: {
+          vocabulary: mockProject.vocabulary,
+          grammar: mockProject.grammar,
+          detectedLanguage: 'English',
+          title: 'Test Project',
+        },
       }),
     });
     expect(result.current.messages).toHaveLength(1);

@@ -10,6 +10,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { FileText, Trophy, Heart, Star, X } from 'lucide-react-native';
 import { useNavigation, useRoute } from '@react-navigation/native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useAuth } from '../hooks/useAuth';
 import { useLearningUnits } from '../hooks/useLearningUnits';
 import { useQuizData } from '../hooks/useQuizData';
@@ -24,6 +25,40 @@ import ReadAfterMeQ from '../components/quiz/ReadAfterMeQ';
 import type { QuizQuestion } from '../lib/types';
 
 const MAX_HEARTS = 3;
+const QUIZ_SCORES_KEY = 'breaklingo-quiz-scores';
+const MAX_SCORES = 50;
+
+export interface QuizScoreEntry {
+  id: string;
+  score: number;
+  total: number;
+  percentage: number;
+  stars: number;
+  unitId?: string;
+  unitTitle?: string;
+  date: string;
+}
+
+export const saveQuizScore = async (entry: QuizScoreEntry): Promise<void> => {
+  try {
+    const stored = await AsyncStorage.getItem(QUIZ_SCORES_KEY);
+    const existing: QuizScoreEntry[] = stored ? JSON.parse(stored) : [];
+    const updated = [entry, ...existing].slice(0, MAX_SCORES);
+    await AsyncStorage.setItem(QUIZ_SCORES_KEY, JSON.stringify(updated));
+  } catch (error) {
+    console.error('Failed to save quiz score:', error);
+  }
+};
+
+export const loadQuizScores = async (): Promise<QuizScoreEntry[]> => {
+  try {
+    const stored = await AsyncStorage.getItem(QUIZ_SCORES_KEY);
+    return stored ? JSON.parse(stored) : [];
+  } catch (error) {
+    console.error('Failed to load quiz scores:', error);
+    return [];
+  }
+};
 
 const QuizScreen: React.FC = () => {
   const navigation = useNavigation();
@@ -50,8 +85,10 @@ const QuizScreen: React.FC = () => {
       }
       const unit = units.find((u) => u.id === unitId);
       if (unit && unit.questions.length > 0) {
-        setActiveQuestions(unit.questions);
-        setTotalQuestions(unit.questions.length);
+        // Limit to 10 questions per unit
+        const limited = unit.questions.slice(0, 10);
+        setActiveQuestions(limited);
+        setTotalQuestions(limited.length);
         setIsLoading(false);
       } else {
         setIsLoading(false);
@@ -91,11 +128,28 @@ const QuizScreen: React.FC = () => {
   );
 
   const handleComplete = useCallback(async () => {
-    if (unitId && totalQuestions > 0) {
-      const finalScore = score / totalQuestions;
-      await updateUnitProgress(unitId, finalScore);
+    if (totalQuestions > 0) {
+      const percentage = Math.round((score / totalQuestions) * 100);
+      const stars = percentage >= 90 ? 3 : percentage >= 70 ? 2 : percentage >= 60 ? 1 : 0;
+
+      if (unitId) {
+        const finalScore = score / totalQuestions;
+        await updateUnitProgress(unitId, finalScore);
+      }
+
+      const unit = unitId ? units.find((u) => u.id === unitId) : undefined;
+      await saveQuizScore({
+        id: `quiz-${Date.now()}`,
+        score,
+        total: totalQuestions,
+        percentage,
+        stars,
+        unitId: unitId || undefined,
+        unitTitle: unit?.title,
+        date: new Date().toISOString(),
+      });
     }
-  }, [unitId, score, totalQuestions, updateUnitProgress]);
+  }, [unitId, score, totalQuestions, updateUnitProgress, units]);
 
   useEffect(() => {
     if (isComplete) {
@@ -152,16 +206,16 @@ const QuizScreen: React.FC = () => {
     return (
       <SafeAreaView style={styles.container}>
         <View style={styles.center}>
-          <View style={styles.emptyIcon}>
-            <FileText size={48} color="#A1A1A1" />
+          <View style={styles.emptyIconCircle}>
+            <FileText size={36} color="#E8550C" />
           </View>
           <Text style={styles.emptyTitle}>
             {!hasProjects ? 'No projects yet' : 'Not enough data for quiz'}
           </Text>
           <Text style={styles.emptySubtitle}>
             {!hasProjects
-              ? 'Process some videos to create quiz content'
-              : 'Add more vocabulary to enable quiz generation'}
+              ? 'Search for a YouTube video to create quiz content'
+              : 'Add more vocabulary from video analysis to enable quiz generation'}
           </Text>
           <TouchableOpacity
             style={styles.backButton}
@@ -251,7 +305,7 @@ const QuizScreen: React.FC = () => {
       </View>
 
       {/* Question */}
-      <ScrollView contentContainerStyle={styles.questionScroll}>
+      <ScrollView contentContainerStyle={styles.questionScroll} key={currentIndex}>
         {renderQuestion(currentQuestion)}
       </ScrollView>
     </SafeAreaView>
@@ -320,6 +374,15 @@ const styles = StyleSheet.create({
     padding: 16,
   },
   // Empty
+  emptyIconCircle: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    backgroundColor: '#FFF5EA',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 16,
+  },
   emptyIcon: {
     marginBottom: 16,
   },

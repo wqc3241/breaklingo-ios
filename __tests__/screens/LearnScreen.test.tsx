@@ -101,6 +101,6 @@ describe('LearnScreen', () => {
     const { getAllByTestId, getByText } = render(<LearnScreen />);
     // Stars are now individual Lucide Star icon components
     expect(getAllByTestId('icon-Star').length).toBe(3);
-    expect(getByText('85%')).toBeTruthy();
+    expect(getByText('Best: 85%')).toBeTruthy();
   });
 });

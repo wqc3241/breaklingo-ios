@@ -62,12 +62,12 @@ describe('InputScreen', () => {
 
   it('renders URL paste toggle', () => {
     const { getByText } = render(<InputScreen />);
-    expect(getByText('▸ Paste YouTube URL instead')).toBeTruthy();
+    expect(getByText('Paste YouTube URL instead')).toBeTruthy();
   });
 
   it('shows URL input when paste button pressed', () => {
     const { getByText, getByPlaceholderText } = render(<InputScreen />);
-    fireEvent.press(getByText('▸ Paste YouTube URL instead'));
+    fireEvent.press(getByText('Paste YouTube URL instead'));
     expect(getByPlaceholderText('Paste YouTube URL...')).toBeTruthy();
   });
 

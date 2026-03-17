@@ -48,7 +48,7 @@ describe('PracticeScreen', () => {
 
     const { getByText } = render(<PracticeScreen />);
     expect(getByText('Practice Sentences')).toBeTruthy();
-    expect(getByText('↻ Generate')).toBeTruthy();
+    expect(getByText('Generate')).toBeTruthy();
   });
 
   it('renders difficulty filters with correct text', async () => {

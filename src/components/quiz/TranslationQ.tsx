@@ -27,7 +27,7 @@ const TranslationQ: React.FC<Props> = ({ question, onAnswer }) => {
       </View>
 
       <View style={styles.optionsContainer}>
-        {question.options.map((option, index) => {
+        {(question.options || []).map((option, index) => {
           let optionStyle = styles.optionDefault;
           let textStyle = styles.optionTextDefault;
 

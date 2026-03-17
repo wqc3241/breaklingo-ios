@@ -154,8 +154,7 @@ export const useAuth = () => {
       });
 
       if (error || !data?.url) {
-        console.error('Google OAuth error:', error);
-        return;
+        throw new Error(error?.message || 'Could not initiate Google sign-in');
       }
 
       // Open in system browser (ASWebAuthenticationSession on iOS)
@@ -201,6 +200,33 @@ export const useAuth = () => {
       }
     } catch (error) {
       console.error('Google sign-in error:', error);
+      throw error;
+    }
+  }, []);
+
+  const handleAppleSignIn = useCallback(async () => {
+    try {
+      const { appleAuth } = require('@invertase/react-native-apple-authentication');
+      if (!appleAuth.isSupported) {
+        throw new Error('Apple Sign In is not supported on this device');
+      }
+      const response = await appleAuth.performRequest({
+        requestedOperation: appleAuth.Operation.LOGIN,
+        requestedScopes: [appleAuth.Scope.EMAIL, appleAuth.Scope.FULL_NAME],
+      });
+      if (!response.identityToken) {
+        throw new Error('No identity token returned from Apple');
+      }
+      const { error } = await supabase.auth.signInWithIdToken({
+        provider: 'apple',
+        token: response.identityToken,
+        nonce: response.nonce,
+      });
+      if (error) throw error;
+    } catch (error: any) {
+      if (error?.code === '1001') return; // User cancelled
+      console.error('Apple sign-in error:', error);
+      throw error;
     }
   }, []);
 
@@ -223,9 +249,7 @@ export const useAuth = () => {
   }, []);
 
   const handleForgotPassword = useCallback(async (email: string) => {
-    const { error } = await supabase.auth.resetPasswordForEmail(email, {
-      redirectTo: `${APP_SCHEME}://reset-password`,
-    });
+    const { error } = await supabase.auth.resetPasswordForEmail(email);
     if (error) throw error;
   }, []);
 
@@ -240,6 +264,7 @@ export const useAuth = () => {
     session,
     isCheckingAuth,
     handleGoogleSignIn,
+    handleAppleSignIn,
     handleSignIn,
     handleSignUp,
     handleForgotPassword,
