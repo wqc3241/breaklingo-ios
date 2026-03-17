@@ -3,15 +3,6 @@ import { render, fireEvent } from '@testing-library/react-native';
 import ListeningQ from '../../../src/components/quiz/ListeningQ';
 import type { QuizQuestion } from '../../../src/lib/types';
 
-// Mock useTextToSpeech
-const mockSpeak = jest.fn();
-jest.mock('../../../src/hooks/useTextToSpeech', () => ({
-  useTextToSpeech: () => ({
-    speak: mockSpeak,
-    isPlaying: false,
-  }),
-}));
-
 const mockQuestion: QuizQuestion = {
   id: 'q1',
   type: 'listening',
@@ -33,19 +24,11 @@ describe('ListeningQ', () => {
     expect(getByText('What did you hear?')).toBeTruthy();
   });
 
-  it('renders play button with Listen text', () => {
-    const { getByText } = render(
+  it('does not render play button (shell handles TTS)', () => {
+    const { queryByText } = render(
       <ListeningQ question={mockQuestion} onAnswer={jest.fn()} />
     );
-    expect(getByText('Listen')).toBeTruthy();
-  });
-
-  it('calls speak when play button pressed', () => {
-    const { getByText } = render(
-      <ListeningQ question={mockQuestion} onAnswer={jest.fn()} />
-    );
-    fireEvent.press(getByText('Listen'));
-    expect(mockSpeak).toHaveBeenCalledWith('Hello');
+    expect(queryByText('Listen')).toBeNull();
   });
 
   it('renders all options', () => {

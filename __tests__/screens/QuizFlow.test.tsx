@@ -165,7 +165,7 @@ describe('QuizFlow Integration', () => {
 
   it('completes quiz with all correct answers across all question types', async () => {
     mockQuestions = allTypeQuestions;
-    const { getByText, queryByText } = render(<QuizScreen />);
+    const { getByText, getAllByText, queryByText } = render(<QuizScreen />);
 
     // Q1: Multiple Choice (1/7)
     await waitFor(() => expect(getByText('1/7')).toBeTruthy());
@@ -188,8 +188,9 @@ describe('QuizFlow Integration', () => {
     // Q4: Listening (4/7)
     await waitFor(() => expect(getByText('4/7')).toBeTruthy());
     expect(getByText('Score: 3')).toBeTruthy();
-    fireEvent.press(getByText('Listen'));
-    fireEvent.press(getByText('こんにちは'));
+    // こんにちは appears in both the shell's script card and as an option
+    const allKonnichiwa = getAllByText('こんにちは');
+    fireEvent.press(allKonnichiwa[allKonnichiwa.length - 1]); // press the option (last one)
     await advanceToNextQuestion();
 
     // Q5: Multiple Select (5/7)

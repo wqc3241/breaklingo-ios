@@ -1,7 +1,6 @@
 import React, { useState } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
-import { Play, Pause } from 'lucide-react-native';
-import { useTextToSpeech } from '../../hooks/useTextToSpeech';
+import { colors } from '../../lib/theme';
 import type { QuizQuestion } from '../../lib/types';
 
 interface Props {
@@ -11,15 +10,6 @@ interface Props {
 
 const ListeningQ: React.FC<Props> = ({ question, onAnswer }) => {
   const [selectedAnswer, setSelectedAnswer] = useState<string | null>(null);
-  const { speak, isPlaying } = useTextToSpeech();
-
-  const audioText = question.audioText || question.originalText || question.correctAnswer;
-
-  const handlePlay = () => {
-    if (audioText) {
-      speak(audioText);
-    }
-  };
 
   const handleAnswer = (answer: string) => {
     if (selectedAnswer) return;
@@ -30,15 +20,6 @@ const ListeningQ: React.FC<Props> = ({ question, onAnswer }) => {
   return (
     <View style={styles.container}>
       <Text style={styles.questionText}>{question.question}</Text>
-
-      {/* Large play button */}
-      <TouchableOpacity
-        style={[styles.playButton, isPlaying && styles.playButtonActive]}
-        onPress={handlePlay}
-      >
-        {isPlaying ? <Pause size={20} color="#FFFFFF" /> : <Play size={20} color="#FFFFFF" />}
-        <Text style={styles.playText}>{isPlaying ? 'Playing...' : 'Listen'}</Text>
-      </TouchableOpacity>
 
       <View style={styles.optionsContainer}>
         {(question.options || []).map((option, index) => {
@@ -85,33 +66,6 @@ const styles = StyleSheet.create({
     lineHeight: 26,
     marginBottom: 20,
   },
-  playButton: {
-    width: 100,
-    height: 100,
-    borderRadius: 50,
-    backgroundColor: '#E8550C',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 24,
-    shadowColor: '#E8550C',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 4,
-  },
-  playButtonActive: {
-    backgroundColor: '#F98F38',
-  },
-  playIcon: {
-    fontSize: 28,
-    color: '#fff',
-  },
-  playText: {
-    fontSize: 12,
-    color: '#fff',
-    fontWeight: '600',
-    marginTop: 4,
-  },
   optionsContainer: {
     width: '100%',
     gap: 10,
@@ -129,14 +83,14 @@ const styles = StyleSheet.create({
     borderColor: '#D4D4D4',
   },
   optionCorrect: {
-    backgroundColor: '#D1FAE5',
+    backgroundColor: colors.correctBg,
     borderWidth: 1,
-    borderColor: '#34D399',
+    borderColor: colors.correctBorder,
   },
   optionWrong: {
-    backgroundColor: '#FEE2E2',
+    backgroundColor: colors.wrongBg,
     borderWidth: 1,
-    borderColor: '#F87171',
+    borderColor: colors.wrongBorder,
   },
   optionText: {
     fontSize: 16,
@@ -146,11 +100,11 @@ const styles = StyleSheet.create({
     color: '#000',
   },
   optionTextCorrect: {
-    color: '#065F46',
+    color: colors.correctText,
     fontWeight: '600',
   },
   optionTextWrong: {
-    color: '#991B1B',
+    color: colors.wrongText,
     fontWeight: '600',
   },
 });

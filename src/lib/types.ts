@@ -81,6 +81,7 @@ export interface LearningUnit {
   difficulty: 'beginner' | 'intermediate' | 'advanced';
   order: number;
   questions: QuizQuestion[];
+  questionCount: number;
   completed: boolean;
   bestScore: number;
   stars: number;
@@ -135,17 +136,38 @@ export interface CuratedVideo {
   thumbnailUrl: string;
 }
 
+// Strip AI-generated artifacts from quiz option strings (e.g. trailing "肢" from "選択肢", "操" from "操作")
+const sanitizeOption = (opt: string): string =>
+  typeof opt === 'string' ? opt.replace(/[肢操]$/u, '').trim() : opt;
+
 // Utility functions
 export const filterValidQuestions = (questions: any[]): QuizQuestion[] => {
-  return questions.filter((q) => {
-    if (!q.type || !q.question) return false;
-    if (q.type === 'match_pairs') return q.pairs && q.pairs.length > 0;
-    if (q.type === 'word_arrange') return q.words && q.correctOrder;
-    if (q.type === 'multiple_select') return q.correctSelections && q.correctSelections.length > 0;
-    if (q.type === 'read_after_me') return q.targetText;
-    if (q.type === 'listening') return q.audioText && q.options && q.options.length > 0;
-    return q.correctAnswer && q.options && q.options.length > 0;
-  });
+  return questions
+    .filter((q) => {
+      if (!q.type || !q.question) return false;
+      if (q.type === 'match_pairs') return q.pairs && q.pairs.length > 0;
+      if (q.type === 'word_arrange') return q.words && q.correctOrder;
+      if (q.type === 'multiple_select') return q.correctSelections && q.correctSelections.length > 0;
+      if (q.type === 'read_after_me') return q.targetText;
+      if (q.type === 'listening') return q.audioText && q.options && q.options.length > 0;
+      return q.correctAnswer && q.options && q.options.length > 0;
+    })
+    .map((q) => ({
+      ...q,
+      question: q.question ? sanitizeOption(q.question) : q.question,
+      options: q.options ? q.options.map(sanitizeOption) : q.options,
+      correctAnswer: q.correctAnswer ? sanitizeOption(q.correctAnswer) : q.correctAnswer,
+      pairs: q.pairs ? q.pairs.map((p: any) => ({
+        ...p,
+        word: p.word ? sanitizeOption(p.word) : p.word,
+        meaning: p.meaning ? sanitizeOption(p.meaning) : p.meaning,
+      })) : q.pairs,
+      words: q.words ? q.words.map(sanitizeOption) : q.words,
+      correctOrder: q.correctOrder ? q.correctOrder.map(sanitizeOption) : q.correctOrder,
+      correctSelections: q.correctSelections ? q.correctSelections.map(sanitizeOption) : q.correctSelections,
+      targetText: q.targetText ? sanitizeOption(q.targetText) : q.targetText,
+      audioText: q.audioText ? sanitizeOption(q.audioText) : q.audioText,
+    }));
 };
 
 const parseUnitOrder = (title: string): number => {
@@ -163,9 +185,10 @@ export const mapDbUnitToLearningUnit = (dbUnit: any, projectTitle: string): Lear
     title,
     description: dbUnit.description || '',
     difficulty: dbUnit.difficulty || 'beginner',
-    order: dbUnit.unit_order ?? (parsedOrder >= 0 ? parsedOrder : 0),
+    order: dbUnit.unit_order ?? dbUnit.unit_number ?? (parsedOrder >= 0 ? parsedOrder : 0),
     questions: filterValidQuestions(dbUnit.questions || []),
-    completed: dbUnit.completed || false,
+    questionCount: dbUnit.question_count || (dbUnit.questions ? filterValidQuestions(dbUnit.questions).length : 0),
+    completed: dbUnit.is_completed || dbUnit.completed || false,
     bestScore: dbUnit.best_score || 0,
     stars: dbUnit.stars || 0,
     attempts: dbUnit.attempts || 0,

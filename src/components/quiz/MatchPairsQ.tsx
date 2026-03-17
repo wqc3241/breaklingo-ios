@@ -1,5 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
+import { useTextToSpeech } from '../../hooks/useTextToSpeech';
+import { colors } from '../../lib/theme';
 import type { QuizQuestion } from '../../lib/types';
 
 interface Props {
@@ -8,6 +10,7 @@ interface Props {
 }
 
 const MatchPairsQ: React.FC<Props> = ({ question, onAnswer }) => {
+  const { speak } = useTextToSpeech();
   const pairs = question.pairs || [];
 
   const shuffledWords = useMemo(
@@ -33,6 +36,7 @@ const MatchPairsQ: React.FC<Props> = ({ question, onAnswer }) => {
 
   const handleWordPress = (word: string) => {
     if (matchedPairs.has(word) || completed) return;
+    speak(word);
     setSelectedWord(word);
     setWrongMatch(null);
   };
@@ -63,8 +67,6 @@ const MatchPairsQ: React.FC<Props> = ({ question, onAnswer }) => {
 
   return (
     <View style={styles.container}>
-      <Text style={styles.questionText}>{question.question || 'Match the pairs'}</Text>
-
       <View style={styles.columnsContainer}>
         {/* Words column */}
         <View style={styles.column}>
@@ -133,13 +135,6 @@ const styles = StyleSheet.create({
     width: '100%',
     alignItems: 'center',
   },
-  questionText: {
-    fontSize: 18,
-    color: '#525252',
-    textAlign: 'center',
-    lineHeight: 26,
-    marginBottom: 20,
-  },
   columnsContainer: {
     flexDirection: 'row',
     width: '100%',
@@ -167,16 +162,16 @@ const styles = StyleSheet.create({
   },
   pairItemSelected: {
     borderColor: '#E8550C',
-    borderWidth: 2,
+    borderWidth: 1,
     backgroundColor: '#FFF5EA',
   },
   pairItemMatched: {
-    backgroundColor: '#D1FAE5',
-    borderColor: '#34D399',
+    backgroundColor: colors.correctBg,
+    borderColor: colors.correctBorder,
   },
   pairItemWrong: {
-    backgroundColor: '#FEE2E2',
-    borderColor: '#F87171',
+    backgroundColor: colors.wrongBg,
+    borderColor: colors.wrongBorder,
   },
   pairText: {
     fontSize: 15,
@@ -188,11 +183,11 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   pairTextMatched: {
-    color: '#065F46',
+    color: colors.correctText,
     fontWeight: '500',
   },
   pairTextWrong: {
-    color: '#991B1B',
+    color: colors.wrongText,
   },
 });
 

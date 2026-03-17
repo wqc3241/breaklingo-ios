@@ -24,8 +24,29 @@ export const useConversation = () => {
   // Keep messagesRef in sync with messages state to avoid stale closures
   messagesRef.current = messages;
 
+  const autoListenEnabledRef = useRef(true);
+
   const { speak, isPlaying } = useTextToSpeech();
   const { startListening, stopListening, cancelListening, isListening, isTranscribing, finalTranscript } = useWhisperSTT();
+
+  const autoListenAfterSpeak = useCallback(() => {
+    if (!autoListenEnabledRef.current) return;
+    // Delay slightly so TTS audio doesn't get picked up by mic
+    setTimeout(async () => {
+      if (!autoListenEnabledRef.current) return;
+      try {
+        setState('listening');
+        await startListening();
+      } catch (error) {
+        console.error('Auto-listen failed:', error);
+        setState('idle');
+      }
+    }, 600);
+  }, [startListening]);
+
+  const setAutoListen = useCallback((enabled: boolean) => {
+    autoListenEnabledRef.current = enabled;
+  }, []);
 
   const startConversation = useCallback(async (project: AppProject) => {
     projectRef.current = project;
@@ -75,9 +96,10 @@ export const useConversation = () => {
       setMessages([aiMessage]);
       setState('speaking');
 
-      // TTS
+      // TTS, then auto-listen
       await speak(greeting);
       setState('idle');
+      autoListenAfterSpeak();
     } catch (error) {
       console.error('Failed to start conversation:', error);
       // Use fallback greeting on network/unexpected errors too
@@ -148,6 +170,7 @@ export const useConversation = () => {
 
       await speak(reply);
       setState('idle');
+      autoListenAfterSpeak();
     } catch (error) {
       console.error('Conversation error:', error);
       Alert.alert('Error', 'Something went wrong. Please try again.');
@@ -180,6 +203,7 @@ export const useConversation = () => {
   }, [isListening, startListening, stopListening, processUserInput]);
 
   const stopConversation = useCallback(async () => {
+    autoListenEnabledRef.current = false;
     await cancelListening();
     setState('processing');
 
@@ -226,6 +250,7 @@ export const useConversation = () => {
   }, [currentSessionId, cancelListening]);
 
   const resetConversation = useCallback(() => {
+    autoListenEnabledRef.current = true;
     setMessages([]);
     setSummary(null);
     setState('idle');
@@ -247,5 +272,6 @@ export const useConversation = () => {
     handleVoiceInput,
     stopConversation,
     resetConversation,
+    setAutoListen,
   };
 };

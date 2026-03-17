@@ -10,27 +10,20 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { GraduationCap, Star, Check, Lock, Trophy } from 'lucide-react-native';
 import { useNavigation } from '@react-navigation/native';
+import EmptyState from '../components/common/EmptyState';
+import LoadingState from '../components/common/LoadingState';
 import { useAuth } from '../hooks/useAuth';
 import { useLearningUnits } from '../hooks/useLearningUnits';
 import { loadQuizScores } from './QuizScreen';
 import type { QuizScoreEntry } from './QuizScreen';
+import { colors, getDifficultyColor } from '../lib/theme';
+import { formatRelativeDate } from '../lib/dateUtils';
 import type { LearningUnit } from '../lib/types';
-
-const formatScoreDate = (dateString: string): string => {
-  const date = new Date(dateString);
-  const now = new Date();
-  const diffMs = now.getTime() - date.getTime();
-  const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
-  if (diffDays === 0) return 'Today';
-  if (diffDays === 1) return 'Yesterday';
-  if (diffDays < 7) return `${diffDays}d ago`;
-  return date.toLocaleDateString();
-};
 
 const LearnScreen: React.FC = () => {
   const navigation = useNavigation<any>();
   const { user } = useAuth();
-  const { units, isLoading, isGenerating, fetchUnits, cleanup } = useLearningUnits(user?.id);
+  const { units, isLoading, isGenerating, hasMore, fetchUnits, fetchMoreUnits, cleanup } = useLearningUnits(user?.id);
   const [recentScores, setRecentScores] = useState<QuizScoreEntry[]>([]);
 
   useEffect(() => {
@@ -53,7 +46,7 @@ const LearnScreen: React.FC = () => {
 
   const handleUnitPress = (unit: LearningUnit, index: number) => {
     if (!isUnitUnlocked(unit, index)) return;
-    navigation.navigate('Quiz', { unitId: unit.id });
+    navigation.navigate('Quiz', { unitId: unit.id, unitTitle: unit.title });
   };
 
   const getStarsDisplay = (stars: number) => {
@@ -67,18 +60,6 @@ const LearnScreen: React.FC = () => {
     return elements;
   };
 
-  const getDifficultyColor = (difficulty: string) => {
-    switch (difficulty) {
-      case 'beginner':
-        return { bg: '#D1FAE5', text: '#065F46' };
-      case 'intermediate':
-        return { bg: '#FEF3C7', text: '#92400E' };
-      case 'advanced':
-        return { bg: '#FEE2E2', text: '#991B1B' };
-      default:
-        return { bg: '#F3F4F6', text: '#374151' };
-    }
-  };
 
   // Group units by project, sorted by parsed order
   const projectGroups: { projectTitle: string; projectId: string | number; units: LearningUnit[] }[] = [];
@@ -102,10 +83,7 @@ const LearnScreen: React.FC = () => {
   if (isLoading && units.length === 0) {
     return (
       <SafeAreaView style={styles.container} edges={['bottom']}>
-        <View style={styles.center}>
-          <ActivityIndicator size="large" color="#E8550C" />
-          <Text style={styles.loadingText}>Loading learning path...</Text>
-        </View>
+        <LoadingState message="Loading learning path..." />
       </SafeAreaView>
     );
   }
@@ -113,11 +91,7 @@ const LearnScreen: React.FC = () => {
   if (isGenerating) {
     return (
       <SafeAreaView style={styles.container} edges={['bottom']}>
-        <View style={styles.center}>
-          <ActivityIndicator size="large" color="#E8550C" />
-          <Text style={styles.loadingText}>Generating lessons...</Text>
-          <Text style={styles.subText}>This may take a moment</Text>
-        </View>
+        <LoadingState message="Generating lessons..." />
       </SafeAreaView>
     );
   }
@@ -125,22 +99,18 @@ const LearnScreen: React.FC = () => {
   if (units.length === 0) {
     return (
       <SafeAreaView style={styles.container} edges={['bottom']}>
-        <View style={styles.center}>
-          <View style={styles.emptyIconCircle}>
-            <GraduationCap size={36} color="#E8550C" />
-          </View>
-          <Text style={styles.emptyTitle}>No lessons yet</Text>
-          <Text style={styles.emptySubtitle}>
-            Search for a YouTube video on the Search tab to create your first learning path with quizzes
-          </Text>
-        </View>
+        <EmptyState
+          icon={<GraduationCap size={36} color="#E8550C" />}
+          title="No lessons yet"
+          subtitle="Search for a YouTube video on the Search tab to create your first learning path with quizzes"
+        />
       </SafeAreaView>
     );
   }
 
   const renderUnitCard = (unit: LearningUnit, index: number, totalInProject: number) => {
     const unlocked = isUnitUnlocked(unit, index);
-    const colors = getDifficultyColor(unit.difficulty);
+    const diffColors = getDifficultyColor(unit.difficulty);
 
     return (
       <TouchableOpacity
@@ -156,9 +126,9 @@ const LearnScreen: React.FC = () => {
             !unlocked && styles.unitCircleLocked,
           ]}>
             {unit.completed ? (
-              <Check size={20} color="#065F46" />
+              <Check size={20} color={colors.correctText} />
             ) : !unlocked ? (
-              <Lock size={20} color="#A1A1A1" />
+              <Lock size={20} color={colors.muted} />
             ) : (
               <Text style={[
                 styles.unitCircleText,
@@ -184,8 +154,8 @@ const LearnScreen: React.FC = () => {
             </Text>
           ) : null}
           <View style={styles.unitMeta}>
-            <View style={[styles.badge, { backgroundColor: colors.bg }]}>
-              <Text style={[styles.badgeText, { color: colors.text }]}>{unit.difficulty}</Text>
+            <View style={[styles.badge, { backgroundColor: diffColors.bg }]}>
+              <Text style={[styles.badgeText, { color: diffColors.text }]}>{unit.difficulty}</Text>
             </View>
             {unit.attempts > 0 && (
               <>
@@ -197,7 +167,7 @@ const LearnScreen: React.FC = () => {
               </>
             )}
             <Text style={styles.scoreText}>
-              {Math.min(unit.questions.length, 10)} questions
+              {Math.min(unit.questionCount || unit.questions.length, 10)} questions
             </Text>
           </View>
         </View>
@@ -222,7 +192,7 @@ const LearnScreen: React.FC = () => {
                   <Text style={styles.scoreEntryTitle} numberOfLines={1}>
                     {entry.unitTitle || 'Practice Quiz'}
                   </Text>
-                  <Text style={styles.scoreEntryDate}>{formatScoreDate(entry.date)}</Text>
+                  <Text style={styles.scoreEntryDate}>{formatRelativeDate(entry.date)}</Text>
                 </View>
                 <View style={styles.scoreEntryRight}>
                   <View style={styles.scoreEntryStars}>
@@ -236,7 +206,7 @@ const LearnScreen: React.FC = () => {
                   </View>
                   <Text style={[
                     styles.scoreEntryPercent,
-                    { color: entry.percentage >= 70 ? '#065F46' : entry.percentage >= 60 ? '#92400E' : '#991B1B' },
+                    { color: entry.percentage >= 70 ? colors.correctText : entry.percentage >= 60 ? colors.intermediateText : colors.wrongText },
                   ]}>
                     {entry.percentage}%
                   </Text>
@@ -252,6 +222,15 @@ const LearnScreen: React.FC = () => {
           </View>
         )}
         contentContainerStyle={styles.listContent}
+        onEndReached={() => {
+          if (hasMore && !isLoading) {
+            fetchMoreUnits();
+          }
+        }}
+        onEndReachedThreshold={0.5}
+        ListFooterComponent={hasMore ? (
+          <ActivityIndicator style={{ padding: 16 }} color={colors.primary} />
+        ) : null}
       />
     </SafeAreaView>
   );
@@ -346,8 +325,8 @@ const styles = StyleSheet.create({
     borderColor: '#E8550C',
   },
   unitCircleCompleted: {
-    backgroundColor: '#D1FAE5',
-    borderColor: '#34D399',
+    backgroundColor: colors.correctBg,
+    borderColor: colors.correctBorder,
   },
   unitCircleLocked: {
     backgroundColor: '#D4D4D4',
@@ -359,7 +338,7 @@ const styles = StyleSheet.create({
     color: '#E8550C',
   },
   unitCircleTextCompleted: {
-    color: '#065F46',
+    color: colors.correctText,
   },
   unitCircleTextLocked: {
     fontSize: 12,
@@ -372,7 +351,7 @@ const styles = StyleSheet.create({
     marginTop: 4,
   },
   connectorCompleted: {
-    backgroundColor: '#34D399',
+    backgroundColor: colors.correctBorder,
   },
   unitContent: {
     flex: 1,

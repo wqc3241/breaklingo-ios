@@ -1,8 +1,8 @@
 import React, { useState } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, ActivityIndicator, Alert, NativeModules } from 'react-native';
-import { Volume2, Mic, Square, Check, X } from 'lucide-react-native';
-import { useTextToSpeech } from '../../hooks/useTextToSpeech';
+import { Mic, Square, Check, X } from 'lucide-react-native';
 import { supabase, SUPABASE_URL } from '../../lib/supabase';
+import { colors } from '../../lib/theme';
 import type { QuizQuestion } from '../../lib/types';
 
 const { AudioRecorderModule } = NativeModules;
@@ -18,15 +18,9 @@ const ReadAfterMeQ: React.FC<Props> = ({ question, onAnswer }) => {
   const [transcript, setTranscript] = useState<string | null>(null);
   const [similarity, setSimilarity] = useState<number | null>(null);
   const [submitted, setSubmitted] = useState(false);
-  const { speak, isPlaying } = useTextToSpeech();
+  const [retryMessage, setRetryMessage] = useState<string | null>(null);
 
   const targetText = question.targetText || question.originalText || question.correctAnswer;
-
-  const handlePlay = () => {
-    if (targetText) {
-      speak(targetText);
-    }
-  };
 
   const startRecording = async () => {
     try {
@@ -83,10 +77,21 @@ const ReadAfterMeQ: React.FC<Props> = ({ question, onAnswer }) => {
         body: formData,
       });
 
-      if (!response.ok) throw new Error('Transcription failed');
+      if (!response.ok) {
+        console.warn('Transcription failed:', response.status);
+        setRetryMessage('No voice detected. Please try again.');
+        return;
+      }
 
       const data = await response.json();
       const transcribedText = data.text || '';
+
+      if (!transcribedText.trim()) {
+        setRetryMessage('No voice detected. Please try again.');
+        return;
+      }
+
+      setRetryMessage(null);
       setTranscript(transcribedText);
 
       // Calculate word overlap similarity
@@ -104,7 +109,7 @@ const ReadAfterMeQ: React.FC<Props> = ({ question, onAnswer }) => {
       onAnswer(sim >= 0.7);
     } catch (error) {
       console.error('Transcription error:', error);
-      Alert.alert('Error', 'Could not transcribe audio. Try again.');
+      setRetryMessage('No voice detected. Please try again.');
     } finally {
       setIsTranscribing(false);
     }
@@ -112,21 +117,12 @@ const ReadAfterMeQ: React.FC<Props> = ({ question, onAnswer }) => {
 
   return (
     <View style={styles.container}>
-      <Text style={styles.questionText}>Read after me:</Text>
-
-      {/* Target text */}
-      <View style={styles.targetCard}>
-        <Text style={styles.targetText}>{targetText}</Text>
+      {/* Retry message — fixed height container so record button doesn't shift */}
+      <View style={styles.retryContainer}>
+        {retryMessage && !submitted && (
+          <Text style={styles.retryText}>{retryMessage}</Text>
+        )}
       </View>
-
-      {/* Listen button */}
-      <TouchableOpacity
-        style={[styles.listenButton, isPlaying && styles.listenButtonActive]}
-        onPress={handlePlay}
-      >
-        {isPlaying ? <Square size={16} color="#DC2626" /> : <Volume2 size={16} color="#E8550C" />}
-        <Text style={styles.listenText}>{isPlaying ? 'Playing...' : 'Listen first'}</Text>
-      </TouchableOpacity>
 
       {/* Record button */}
       {!submitted && (
@@ -163,7 +159,7 @@ const ReadAfterMeQ: React.FC<Props> = ({ question, onAnswer }) => {
             <Text style={styles.resultScore}>
               Similarity: {Math.round(similarity * 100)}%{' '}
             </Text>
-            {similarity >= 0.7 ? <Check size={16} color="#065F46" /> : <X size={16} color="#991B1B" />}
+            {similarity >= 0.7 ? <Check size={16} color={colors.correctText} /> : <X size={16} color={colors.wrongText} />}
           </View>
         </View>
       )}
@@ -174,45 +170,21 @@ const ReadAfterMeQ: React.FC<Props> = ({ question, onAnswer }) => {
 const styles = StyleSheet.create({
   container: {
     width: '100%',
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'flex-end',
+    paddingBottom: 40,
+  },
+  retryContainer: {
+    height: 36,
+    justifyContent: 'center',
     alignItems: 'center',
   },
-  questionText: {
-    fontSize: 18,
-    color: '#525252',
-    marginBottom: 16,
-    fontWeight: '600',
-  },
-  targetCard: {
-    backgroundColor: '#FFF5EA',
-    borderRadius: 12,
-    padding: 20,
-    width: '100%',
-    marginBottom: 20,
-  },
-  targetText: {
-    fontSize: 24,
-    fontWeight: '600',
-    color: '#000',
-    textAlign: 'center',
-    lineHeight: 34,
-  },
-  listenButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    paddingHorizontal: 20,
-    paddingVertical: 10,
-    borderRadius: 20,
-    backgroundColor: '#F5F5F5',
-    marginBottom: 24,
-  },
-  listenButtonActive: {
-    backgroundColor: '#FFF5EA',
-  },
-  listenText: {
-    fontSize: 15,
-    color: '#E8550C',
+  retryText: {
+    fontSize: 14,
+    color: colors.primary,
     fontWeight: '500',
+    textAlign: 'center',
   },
   recordButton: {
     width: 100,
@@ -244,14 +216,14 @@ const styles = StyleSheet.create({
     marginTop: 8,
   },
   resultCorrect: {
-    backgroundColor: '#D1FAE5',
+    backgroundColor: colors.correctBg,
     borderWidth: 1,
-    borderColor: '#34D399',
+    borderColor: colors.correctBorder,
   },
   resultWrong: {
-    backgroundColor: '#FEE2E2',
+    backgroundColor: colors.wrongBg,
     borderWidth: 1,
-    borderColor: '#F87171',
+    borderColor: colors.wrongBorder,
   },
   resultLabel: {
     fontSize: 12,

@@ -63,7 +63,11 @@ export const useWhisperSTT = () => {
         body: formData,
       });
 
-      if (!response.ok) throw new Error('Transcription failed');
+      if (!response.ok) {
+        const errorBody = await response.text().catch(() => '');
+        console.warn(`Transcription failed (${response.status}): ${errorBody}`);
+        return '';
+      }
 
       const data = await response.json();
       const text = data.text || '';

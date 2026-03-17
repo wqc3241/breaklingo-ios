@@ -13,18 +13,18 @@ const mockQuestion: QuizQuestion = {
 };
 
 describe('FillBlankQ', () => {
-  it('renders the question', () => {
+  it('renders options (question text handled by shell)', () => {
     const { getByText } = render(
       <FillBlankQ question={mockQuestion} onAnswer={jest.fn()} />
     );
-    expect(getByText('Which word means "cat"?')).toBeTruthy();
+    expect(getByText('猫')).toBeTruthy();
   });
 
-  it('renders sentence with blank when provided', () => {
-    const { getByText } = render(
+  it('does not render sentence card (shell handles it)', () => {
+    const { queryByText } = render(
       <FillBlankQ question={mockQuestion} onAnswer={jest.fn()} />
     );
-    expect(getByText('The ______ is sleeping.')).toBeTruthy();
+    expect(queryByText('The ______ is sleeping.')).toBeNull();
   });
 
   it('renders options in a grid', () => {

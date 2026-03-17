@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
+import { colors } from '../../lib/theme';
 import type { QuizQuestion } from '../../lib/types';
 
 interface Props {
@@ -18,10 +19,6 @@ const MultipleChoiceQ: React.FC<Props> = ({ question, onAnswer }) => {
 
   return (
     <View style={styles.container}>
-      {question.originalText && (
-        <Text style={styles.originalText}>{question.originalText}</Text>
-      )}
-      <Text style={styles.questionText}>{question.question}</Text>
       <View style={styles.optionsContainer}>
         {(question.options || []).map((option, index) => {
           let optionStyle = styles.optionDefault;
@@ -59,20 +56,6 @@ const styles = StyleSheet.create({
   container: {
     alignItems: 'center',
   },
-  originalText: {
-    fontSize: 28,
-    fontWeight: '700',
-    color: '#000',
-    marginBottom: 12,
-    textAlign: 'center',
-  },
-  questionText: {
-    fontSize: 18,
-    color: '#525252',
-    textAlign: 'center',
-    lineHeight: 26,
-    marginBottom: 24,
-  },
   optionsContainer: {
     width: '100%',
     gap: 10,
@@ -90,14 +73,14 @@ const styles = StyleSheet.create({
     borderColor: '#D4D4D4',
   },
   optionCorrect: {
-    backgroundColor: '#D1FAE5',
+    backgroundColor: colors.correctBg,
     borderWidth: 1,
-    borderColor: '#34D399',
+    borderColor: colors.correctBorder,
   },
   optionWrong: {
-    backgroundColor: '#FEE2E2',
+    backgroundColor: colors.wrongBg,
     borderWidth: 1,
-    borderColor: '#F87171',
+    borderColor: colors.wrongBorder,
   },
   optionText: {
     fontSize: 16,
@@ -107,11 +90,11 @@ const styles = StyleSheet.create({
     color: '#000',
   },
   optionTextCorrect: {
-    color: '#065F46',
+    color: colors.correctText,
     fontWeight: '600',
   },
   optionTextWrong: {
-    color: '#991B1B',
+    color: colors.wrongText,
     fontWeight: '600',
   },
 });

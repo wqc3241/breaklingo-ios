@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
+import { colors } from '../../lib/theme';
 import type { QuizQuestion } from '../../lib/types';
 
 interface Props {
@@ -18,14 +19,6 @@ const TranslationQ: React.FC<Props> = ({ question, onAnswer }) => {
 
   return (
     <View style={styles.container}>
-      {/* Context card */}
-      <View style={styles.contextCard}>
-        <Text style={styles.contextLabel}>Translate this:</Text>
-        <Text style={styles.contextText}>
-          {question.originalText || question.context || question.question}
-        </Text>
-      </View>
-
       <View style={styles.optionsContainer}>
         {(question.options || []).map((option, index) => {
           let optionStyle = styles.optionDefault;
@@ -63,26 +56,6 @@ const styles = StyleSheet.create({
   container: {
     width: '100%',
   },
-  contextCard: {
-    backgroundColor: '#FFF5EA',
-    borderRadius: 12,
-    padding: 20,
-    marginBottom: 20,
-    alignItems: 'center',
-  },
-  contextLabel: {
-    fontSize: 14,
-    color: '#E8550C',
-    fontWeight: '600',
-    marginBottom: 8,
-  },
-  contextText: {
-    fontSize: 22,
-    fontWeight: '600',
-    color: '#000',
-    textAlign: 'center',
-    lineHeight: 30,
-  },
   optionsContainer: {
     gap: 10,
   },
@@ -99,14 +72,14 @@ const styles = StyleSheet.create({
     borderColor: '#D4D4D4',
   },
   optionCorrect: {
-    backgroundColor: '#D1FAE5',
+    backgroundColor: colors.correctBg,
     borderWidth: 1,
-    borderColor: '#34D399',
+    borderColor: colors.correctBorder,
   },
   optionWrong: {
-    backgroundColor: '#FEE2E2',
+    backgroundColor: colors.wrongBg,
     borderWidth: 1,
-    borderColor: '#F87171',
+    borderColor: colors.wrongBorder,
   },
   optionText: {
     fontSize: 16,
@@ -116,11 +89,11 @@ const styles = StyleSheet.create({
     color: '#000',
   },
   optionTextCorrect: {
-    color: '#065F46',
+    color: colors.correctText,
     fontWeight: '600',
   },
   optionTextWrong: {
-    color: '#991B1B',
+    color: colors.wrongText,
     fontWeight: '600',
   },
 });

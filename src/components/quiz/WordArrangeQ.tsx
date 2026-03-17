@@ -1,5 +1,6 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
+import { colors } from '../../lib/theme';
 import type { QuizQuestion } from '../../lib/types';
 
 interface Props {
@@ -8,47 +9,42 @@ interface Props {
 }
 
 const WordArrangeQ: React.FC<Props> = ({ question, onAnswer }) => {
-  const [selectedWords, setSelectedWords] = useState<string[]>([]);
-  const [availableWords, setAvailableWords] = useState<string[]>(
-    [...(question.words || question.options || [])].sort(() => Math.random() - 0.5)
+  // Fixed pool of words — order never changes, selected words are grayed out in place
+  const allWords = useMemo(
+    () => [...(question.words || question.options || [])].sort(() => Math.random() - 0.5),
+    [question.words, question.options]
   );
+
+  // Track selected word indices (in order of selection)
+  const [selectedIndices, setSelectedIndices] = useState<number[]>([]);
   const [submitted, setSubmitted] = useState(false);
   const [isCorrect, setIsCorrect] = useState(false);
 
   const correctOrder = question.correctOrder || [];
+  const selectedWords = selectedIndices.map((i) => allWords[i]);
+  const usedSet = new Set(selectedIndices);
 
-  const handleWordTap = (word: string, fromSelected: boolean) => {
+  const handlePoolTap = (index: number) => {
+    if (submitted || usedSet.has(index)) return;
+    setSelectedIndices((prev) => [...prev, index]);
+  };
+
+  const handleSelectedTap = (positionInSelected: number) => {
     if (submitted) return;
-
-    if (fromSelected) {
-      setSelectedWords((prev) => {
-        const idx = prev.indexOf(word);
-        const newSelected = [...prev];
-        newSelected.splice(idx, 1);
-        return newSelected;
-      });
-      setAvailableWords((prev) => [...prev, word]);
-    } else {
-      setAvailableWords((prev) => {
-        const idx = prev.indexOf(word);
-        const newAvailable = [...prev];
-        newAvailable.splice(idx, 1);
-        return newAvailable;
-      });
-      setSelectedWords((prev) => [...prev, word]);
-    }
+    setSelectedIndices((prev) => {
+      const newIndices = [...prev];
+      newIndices.splice(positionInSelected, 1);
+      return newIndices;
+    });
   };
 
   const handleReset = () => {
     if (submitted) return;
-    setAvailableWords(
-      [...(question.words || question.options || [])].sort(() => Math.random() - 0.5)
-    );
-    setSelectedWords([]);
+    setSelectedIndices([]);
   };
 
   const handleCheck = () => {
-    if (submitted || selectedWords.length === 0) return;
+    if (submitted || selectedIndices.length === 0) return;
     setSubmitted(true);
     const correct = selectedWords.length === correctOrder.length &&
       selectedWords.every((w, i) => w === correctOrder[i]);
@@ -58,22 +54,22 @@ const WordArrangeQ: React.FC<Props> = ({ question, onAnswer }) => {
 
   return (
     <View style={styles.container}>
-      <Text style={styles.questionText}>{question.question}</Text>
-
       {/* Selected words area */}
       <View style={[
         styles.selectedArea,
         submitted && (isCorrect ? styles.selectedAreaCorrect : styles.selectedAreaWrong),
       ]}>
-        {selectedWords.length === 0 ? (
-          <Text style={styles.placeholderText}>Tap words to build your answer</Text>
+        {selectedIndices.length === 0 ? (
+          <View style={styles.placeholderContainer}>
+            <Text style={styles.placeholderText}>Tap words to build your answer</Text>
+          </View>
         ) : (
           <View style={styles.wordsRow}>
             {selectedWords.map((word, index) => (
               <TouchableOpacity
                 key={`s-${index}`}
                 style={styles.selectedWord}
-                onPress={() => handleWordTap(word, true)}
+                onPress={() => handleSelectedTap(index)}
                 disabled={submitted}
               >
                 <Text style={styles.selectedWordText}>{word}</Text>
@@ -83,18 +79,23 @@ const WordArrangeQ: React.FC<Props> = ({ question, onAnswer }) => {
         )}
       </View>
 
-      {/* Available words */}
+      {/* Word pool — fixed positions, gray out used words */}
       <View style={styles.wordsRow}>
-        {availableWords.map((word, index) => (
-          <TouchableOpacity
-            key={`a-${index}`}
-            style={styles.availableWord}
-            onPress={() => handleWordTap(word, false)}
-            disabled={submitted}
-          >
-            <Text style={styles.availableWordText}>{word}</Text>
-          </TouchableOpacity>
-        ))}
+        {allWords.map((word, index) => {
+          const isUsed = usedSet.has(index);
+          return (
+            <TouchableOpacity
+              key={`p-${index}`}
+              style={[styles.availableWord, isUsed && styles.availableWordUsed]}
+              onPress={() => handlePoolTap(index)}
+              disabled={submitted || isUsed}
+            >
+              <Text style={[styles.availableWordText, isUsed && styles.availableWordTextUsed]}>
+                {word}
+              </Text>
+            </TouchableOpacity>
+          );
+        })}
       </View>
 
       {!submitted && (
@@ -103,9 +104,9 @@ const WordArrangeQ: React.FC<Props> = ({ question, onAnswer }) => {
             <Text style={styles.resetText}>Reset</Text>
           </TouchableOpacity>
           <TouchableOpacity
-            style={[styles.checkButton, selectedWords.length === 0 && styles.checkButtonDisabled]}
+            style={[styles.checkButton, selectedIndices.length === 0 && styles.checkButtonDisabled]}
             onPress={handleCheck}
-            disabled={selectedWords.length === 0}
+            disabled={selectedIndices.length === 0}
           >
             <Text style={styles.checkButtonText}>Check</Text>
           </TouchableOpacity>
@@ -127,34 +128,31 @@ const styles = StyleSheet.create({
     width: '100%',
     alignItems: 'center',
   },
-  questionText: {
-    fontSize: 18,
-    color: '#525252',
-    textAlign: 'center',
-    lineHeight: 26,
-    marginBottom: 20,
-  },
   selectedArea: {
     width: '100%',
-    minHeight: 80,
+    height: 120,
     backgroundColor: '#F3F4F6',
     borderRadius: 12,
     padding: 12,
-    marginBottom: 20,
-    borderWidth: 2,
+    marginBottom: 24,
+    borderWidth: 1,
     borderColor: '#D4D4D4',
     borderStyle: 'dashed',
-    justifyContent: 'center',
   },
   selectedAreaCorrect: {
-    borderColor: '#34D399',
-    backgroundColor: '#D1FAE5',
+    borderColor: colors.correctBorder,
+    backgroundColor: colors.correctBg,
     borderStyle: 'solid',
   },
   selectedAreaWrong: {
-    borderColor: '#F87171',
-    backgroundColor: '#FEE2E2',
+    borderColor: colors.wrongBorder,
+    backgroundColor: colors.wrongBg,
     borderStyle: 'solid',
+  },
+  placeholderContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   placeholderText: {
     color: '#A1A1A1',
@@ -187,9 +185,16 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#D4D4D4',
   },
+  availableWordUsed: {
+    backgroundColor: '#F3F4F6',
+    borderColor: '#E5E7EB',
+  },
   availableWordText: {
     color: '#000',
     fontSize: 16,
+  },
+  availableWordTextUsed: {
+    color: '#D4D4D4',
   },
   actionsRow: {
     flexDirection: 'row',
@@ -236,7 +241,7 @@ const styles = StyleSheet.create({
   },
   correctText: {
     fontSize: 16,
-    color: '#065F46',
+    color: colors.correctText,
     fontWeight: '600',
   },
 });

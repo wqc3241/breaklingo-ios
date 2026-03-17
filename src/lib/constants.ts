@@ -6,13 +6,13 @@ export const TEST_VIDEO_URL = 'https://www.youtube.com/watch?v=test_sample_123';
 export const AVATAR_URL =
   'https://evmamwdmwogmlezndueg.supabase.co/storage/v1/object/public/App_Image/orange_fox.png';
 
-// Development testing mode - set to true to auto-login with test account
-export const DEV_TEST_MODE = false;
+// Auto-login with test account in debug builds (simulator), real auth in release builds (device)
+export const DEV_TEST_MODE = __DEV__;
 
 // Test account credentials for auto-login (only used when DEV_TEST_MODE is true)
 export const TEST_ACCOUNT = {
   email: 'qichaotomwang+1@gmail.com',
-  password: 'SpeakSmartClips2025!',
+  password: 'Test123',
 };
 
 export const APP_SCHEME = 'com.breaklingo.app';

@@ -4,15 +4,6 @@ import { NativeModules } from 'react-native';
 import ReadAfterMeQ from '../../../src/components/quiz/ReadAfterMeQ';
 import type { QuizQuestion } from '../../../src/lib/types';
 
-// Mock useTextToSpeech
-const mockSpeak = jest.fn();
-jest.mock('../../../src/hooks/useTextToSpeech', () => ({
-  useTextToSpeech: () => ({
-    speak: mockSpeak,
-    isPlaying: false,
-  }),
-}));
-
 const mockQuestion: QuizQuestion = {
   id: 'q1',
   type: 'read_after_me',
@@ -27,33 +18,19 @@ describe('ReadAfterMeQ', () => {
     jest.clearAllMocks();
   });
 
-  it('renders "Read after me:" label', () => {
-    const { getByText } = render(
+  it('does not render "Read after me:" label (shell type banner handles it)', () => {
+    const { queryByText } = render(
       <ReadAfterMeQ question={mockQuestion} onAnswer={jest.fn()} />
     );
-    expect(getByText('Read after me:')).toBeTruthy();
+    expect(queryByText('Read after me:')).toBeNull();
   });
 
-  it('renders target text', () => {
-    const { getByText } = render(
+  it('does not render target text card (shell handles it)', () => {
+    const { queryByText } = render(
       <ReadAfterMeQ question={mockQuestion} onAnswer={jest.fn()} />
     );
-    expect(getByText('Good morning')).toBeTruthy();
-  });
-
-  it('renders listen button', () => {
-    const { getByText } = render(
-      <ReadAfterMeQ question={mockQuestion} onAnswer={jest.fn()} />
-    );
-    expect(getByText('Listen first')).toBeTruthy();
-  });
-
-  it('calls speak when listen pressed', () => {
-    const { getByText } = render(
-      <ReadAfterMeQ question={mockQuestion} onAnswer={jest.fn()} />
-    );
-    fireEvent.press(getByText('Listen first'));
-    expect(mockSpeak).toHaveBeenCalledWith('Good morning');
+    // The shell shows the target text, not the component itself
+    expect(queryByText('Listen first')).toBeNull();
   });
 
   it('renders record button', () => {

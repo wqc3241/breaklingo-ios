@@ -144,7 +144,7 @@ describe('StudyScreen', () => {
     expect(getByText('Processing...')).toBeTruthy();
   });
 
-  it('shows video preview when project has URL', () => {
+  it('shows embedded YouTube player when project has URL', () => {
     mockCurrentProject = {
       id: '1',
       title: 'Video Project',
@@ -154,8 +154,8 @@ describe('StudyScreen', () => {
       script: '',
     };
 
-    const { getByText } = render(<StudyScreen />);
-    expect(getByText('Watch on YouTube')).toBeTruthy();
+    const { getByTestId } = render(<StudyScreen />);
+    expect(getByTestId('youtube-player')).toBeTruthy();
   });
 
   it('shows language selector badge', () => {

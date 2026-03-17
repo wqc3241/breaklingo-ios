@@ -12,10 +12,13 @@ import {
   Modal,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { BookOpen, Volume2, RefreshCw, Clock, AlertTriangle, Play, ChevronDown, ExternalLink, XCircle } from 'lucide-react-native';
+import { BookOpen, Volume2, RefreshCw, Clock, AlertTriangle, ChevronDown, XCircle } from 'lucide-react-native';
+import YouTubePlayerComponent from '../components/YouTubePlayer';
+import EmptyState from '../components/common/EmptyState';
 import { useProjectContext } from '../context/ProjectContext';
 import { useVideoProcessing } from '../hooks/useVideoProcessing';
 import { useTextToSpeech } from '../hooks/useTextToSpeech';
+import { colors, getDifficultyColor } from '../lib/theme';
 import type { VocabularyItem, GrammarItem } from '../lib/types';
 
 const LANGUAGES = [
@@ -95,15 +98,11 @@ const StudyScreen: React.FC = () => {
   if (!currentProject) {
     return (
       <SafeAreaView style={styles.container} edges={['bottom']}>
-        <View style={styles.emptyState}>
-          <View style={styles.emptyIconCircle}>
-            <BookOpen size={36} color="#E8550C" />
-          </View>
-          <Text style={styles.emptyTitle}>No lesson yet</Text>
-          <Text style={styles.emptySubtitle}>
-            Search for a YouTube video on the Search tab to start learning vocabulary and grammar
-          </Text>
-        </View>
+        <EmptyState
+          icon={<BookOpen size={36} color="#E8550C" />}
+          title="No lesson yet"
+          subtitle="Search for a YouTube video on the Search tab to start learning vocabulary and grammar"
+        />
       </SafeAreaView>
     );
   }
@@ -112,9 +111,9 @@ const StudyScreen: React.FC = () => {
     return (
       <SafeAreaView style={styles.container} edges={['bottom']}>
         <View style={styles.statusCard}>
-          <View style={[styles.statusBanner, { backgroundColor: '#FEF3C7' }]}>
-            <Clock size={20} color="#92400E" />
-            <Text style={[styles.statusBannerText, { color: '#92400E' }]}>
+          <View style={[styles.statusBanner, { backgroundColor: colors.intermediateBg }]}>
+            <Clock size={20} color={colors.intermediateText} />
+            <Text style={[styles.statusBannerText, { color: colors.intermediateText }]}>
               Processing...
             </Text>
           </View>
@@ -130,9 +129,9 @@ const StudyScreen: React.FC = () => {
     return (
       <SafeAreaView style={styles.container} edges={['bottom']}>
         <View style={styles.statusCard}>
-          <View style={[styles.statusBanner, { backgroundColor: '#FEE2E2' }]}>
-            <AlertTriangle size={20} color="#991B1B" />
-            <Text style={[styles.statusBannerText, { color: '#991B1B' }]}>
+          <View style={[styles.statusBanner, { backgroundColor: colors.wrongBg }]}>
+            <AlertTriangle size={20} color={colors.wrongText} />
+            <Text style={[styles.statusBannerText, { color: colors.wrongText }]}>
               Generation failed
             </Text>
           </View>
@@ -155,21 +154,9 @@ const StudyScreen: React.FC = () => {
     );
   }
 
-  const getDifficultyColor = (difficulty?: string) => {
-    switch (difficulty) {
-      case 'beginner':
-        return { bg: '#D1FAE5', text: '#065F46' };
-      case 'intermediate':
-        return { bg: '#FEF3C7', text: '#92400E' };
-      case 'advanced':
-        return { bg: '#FEE2E2', text: '#991B1B' };
-      default:
-        return { bg: '#F3F4F6', text: '#374151' };
-    }
-  };
 
   const renderVocabularyItem = ({ item }: { item: VocabularyItem }) => {
-    const colors = getDifficultyColor(item.difficulty);
+    const diffColors = getDifficultyColor(item.difficulty);
     const isSpeaking = isPlaying && currentText === item.word;
     return (
       <View style={styles.card}>
@@ -179,7 +166,7 @@ const StudyScreen: React.FC = () => {
               style={styles.speakerButton}
               onPress={() => speak(item.word)}
             >
-              <Volume2 size={16} color="#E8550C" />
+              <Volume2 size={16} color={colors.primary} />
             </TouchableOpacity>
             <View style={styles.wordInfo}>
               <Text style={styles.word}>{item.word}</Text>
@@ -190,15 +177,15 @@ const StudyScreen: React.FC = () => {
           </View>
           <View style={styles.badgeRow}>
             {item.partOfSpeech && (
-              <View style={[styles.badge, { backgroundColor: '#EDE9FE' }]}>
-                <Text style={[styles.badgeText, { color: '#7C3AED' }]}>
+              <View style={[styles.badge, { backgroundColor: colors.partOfSpeechBg }]}>
+                <Text style={[styles.badgeText, { color: colors.partOfSpeechText }]}>
                   {item.partOfSpeech}
                 </Text>
               </View>
             )}
             {item.difficulty && (
-              <View style={[styles.badge, { backgroundColor: colors.bg }]}>
-                <Text style={[styles.badgeText, { color: colors.text }]}>
+              <View style={[styles.badge, { backgroundColor: diffColors.bg }]}>
+                <Text style={[styles.badgeText, { color: diffColors.text }]}>
                   {item.difficulty}
                 </Text>
               </View>
@@ -233,19 +220,9 @@ const StudyScreen: React.FC = () => {
 
   return (
     <SafeAreaView style={styles.container} edges={['bottom']}>
-      {/* YouTube Video Preview */}
+      {/* YouTube Video Player */}
       {videoId && (
-        <TouchableOpacity style={styles.videoPreview} onPress={handleOpenVideo}>
-          <View style={styles.videoOverlay}>
-            <View style={styles.playButton}>
-              <Play size={24} color="#fff" fill="#fff" />
-            </View>
-            <Text style={styles.videoLabel} numberOfLines={1}>
-              Watch on YouTube
-            </Text>
-            <ExternalLink size={14} color="#fff" />
-          </View>
-        </TouchableOpacity>
+        <YouTubePlayerComponent videoId={videoId} onOpenExternal={handleOpenVideo} />
       )}
 
       {/* Project Title + Language Selector + Regenerate */}
@@ -438,35 +415,6 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#F5F5F5',
-  },
-  videoPreview: {
-    backgroundColor: '#171717',
-    height: 56,
-    marginHorizontal: 16,
-    marginTop: 8,
-    borderRadius: 12,
-    overflow: 'hidden',
-  },
-  videoOverlay: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
-    paddingHorizontal: 16,
-  },
-  playButton: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: 'rgba(232, 85, 12, 0.9)',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  videoLabel: {
-    color: '#fff',
-    fontSize: 14,
-    fontWeight: '500',
   },
   statusCard: {
     margin: 16,

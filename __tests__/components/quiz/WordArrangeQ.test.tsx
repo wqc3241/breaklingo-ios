@@ -14,13 +14,6 @@ const mockQuestion: QuizQuestion = {
 };
 
 describe('WordArrangeQ', () => {
-  it('renders the question', () => {
-    const { getByText } = render(
-      <WordArrangeQ question={mockQuestion} onAnswer={jest.fn()} />
-    );
-    expect(getByText('Arrange the words to form a sentence')).toBeTruthy();
-  });
-
   it('renders placeholder text', () => {
     const { getByText } = render(
       <WordArrangeQ question={mockQuestion} onAnswer={jest.fn()} />

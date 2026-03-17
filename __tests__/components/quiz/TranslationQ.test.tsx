@@ -13,14 +13,6 @@ const mockQuestion: QuizQuestion = {
 };
 
 describe('TranslationQ', () => {
-  it('renders translate context card', () => {
-    const { getByText } = render(
-      <TranslationQ question={mockQuestion} onAnswer={jest.fn()} />
-    );
-    expect(getByText('Translate this:')).toBeTruthy();
-    expect(getByText('おはようございます')).toBeTruthy();
-  });
-
   it('renders all options', () => {
     const { getByText } = render(
       <TranslationQ question={mockQuestion} onAnswer={jest.fn()} />
@@ -28,6 +20,13 @@ describe('TranslationQ', () => {
     mockQuestion.options.forEach((opt) => {
       expect(getByText(opt)).toBeTruthy();
     });
+  });
+
+  it('does not render context card (shell handles it)', () => {
+    const { queryByText } = render(
+      <TranslationQ question={mockQuestion} onAnswer={jest.fn()} />
+    );
+    expect(queryByText('Translate this:')).toBeNull();
   });
 
   it('calls onAnswer(true) for correct selection', () => {

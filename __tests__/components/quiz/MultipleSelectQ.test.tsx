@@ -13,11 +13,10 @@ const mockQuestion: QuizQuestion = {
 };
 
 describe('MultipleSelectQ', () => {
-  it('renders the question and hint', () => {
+  it('renders the hint text', () => {
     const { getByText } = render(
       <MultipleSelectQ question={mockQuestion} onAnswer={jest.fn()} />
     );
-    expect(getByText('Select all adjectives')).toBeTruthy();
     expect(getByText('Select all that apply')).toBeTruthy();
   });
 

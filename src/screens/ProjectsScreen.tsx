@@ -13,22 +13,12 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { FolderOpen, Star, Search, Clock } from 'lucide-react-native';
 import { useNavigation } from '@react-navigation/native';
+import EmptyState from '../components/common/EmptyState';
+import LoadingState from '../components/common/LoadingState';
 import { useProjectContext } from '../context/ProjectContext';
+import { formatRelativeDate } from '../lib/dateUtils';
+import { colors } from '../lib/theme';
 import type { AppProject } from '../lib/types';
-
-const formatLastAccessed = (dateString?: string): string => {
-  if (!dateString) return '';
-  const date = new Date(dateString);
-  const now = new Date();
-  const diffMs = now.getTime() - date.getTime();
-  const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
-
-  if (diffDays === 0) return 'Today';
-  if (diffDays === 1) return 'Yesterday';
-  if (diffDays < 7) return `${diffDays} days ago`;
-  if (diffDays < 30) return `${Math.floor(diffDays / 7)} weeks ago`;
-  return date.toLocaleDateString();
-};
 
 const ProjectsScreen: React.FC = () => {
   const [projects, setProjects] = useState<AppProject[]>([]);
@@ -114,13 +104,13 @@ const ProjectsScreen: React.FC = () => {
   const getStatusColor = (status?: string) => {
     switch (status) {
       case 'completed':
-        return { bg: '#D1FAE5', text: '#065F46' };
+        return { bg: colors.correctBg, text: colors.correctText };
       case 'pending':
-        return { bg: '#FEF3C7', text: '#92400E' };
+        return { bg: colors.intermediateBg, text: colors.intermediateText };
       case 'failed':
-        return { bg: '#FEE2E2', text: '#991B1B' };
+        return { bg: colors.wrongBg, text: colors.wrongText };
       default:
-        return { bg: '#D1FAE5', text: '#065F46' };
+        return { bg: colors.correctBg, text: colors.correctText };
     }
   };
 
@@ -170,7 +160,7 @@ const ProjectsScreen: React.FC = () => {
             <View style={styles.lastAccessedRow}>
               <Clock size={11} color="#A1A1A1" />
               <Text style={styles.lastAccessedText}>
-                {formatLastAccessed(item.lastAccessed)}
+                {formatRelativeDate(item.lastAccessed)}
               </Text>
             </View>
           ) : null}
@@ -191,27 +181,15 @@ const ProjectsScreen: React.FC = () => {
       </View>
 
       {isLoading ? (
-        <View style={styles.loadingState}>
-          <ActivityIndicator size="large" color="#E8550C" />
-        </View>
+        <LoadingState />
       ) : sortedProjects.length === 0 ? (
-        <View style={styles.emptyState}>
-          <View style={styles.emptyIconCircle}>
-            {searchQuery ? (
-              <Search size={36} color="#E8550C" />
-            ) : (
-              <FolderOpen size={36} color="#E8550C" />
-            )}
-          </View>
-          <Text style={styles.emptyTitle}>
-            {searchQuery ? 'No matching projects' : 'No saved projects'}
-          </Text>
-          <Text style={styles.emptySubtitle}>
-            {searchQuery
-              ? 'Try a different search term or clear the filter'
-              : 'Search for a YouTube video on the Search tab to create your first project'}
-          </Text>
-        </View>
+        <EmptyState
+          icon={searchQuery ? <Search size={36} color="#E8550C" /> : <FolderOpen size={36} color="#E8550C" />}
+          title={searchQuery ? 'No matching projects' : 'No saved projects'}
+          subtitle={searchQuery
+            ? 'Try a different search term or clear the filter'
+            : 'Search for a YouTube video on the Search tab to create your first project'}
+        />
       ) : (
         <FlatList
           data={sortedProjects}

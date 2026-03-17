@@ -1,18 +1,30 @@
 import { useState, useCallback, useRef } from 'react';
 import { Alert } from 'react-native';
 import { supabase } from '../lib/supabase';
-import type { LearningUnit } from '../lib/types';
-import { mapDbUnitToLearningUnit } from '../lib/types';
+import type { LearningUnit, QuizQuestion } from '../lib/types';
+import { mapDbUnitToLearningUnit, filterValidQuestions } from '../lib/types';
+
+const PAGE_SIZE = 10;
+
+// Lightweight select that excludes the heavy `questions` JSONB column
+const UNIT_LIST_COLUMNS =
+  'id, project_id, user_id, unit_number, title, description, difficulty, is_completed, best_score, attempts, stars, question_count, created_at';
 
 export const useLearningUnits = (userId: string | undefined) => {
   const [units, setUnits] = useState<LearningUnit[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
+  const [hasMore, setHasMore] = useState(true);
+  const [page, setPage] = useState(0);
   const pollingRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const projectTitleMapRef = useRef<Record<string, string>>({});
+  const projectIdsRef = useRef<any[]>([]);
 
   const fetchUnits = useCallback(async () => {
     if (!userId) return;
     setIsLoading(true);
+    setPage(0);
+    setHasMore(true);
 
     try {
       // Fetch projects
@@ -32,13 +44,16 @@ export const useLearningUnits = (userId: string | undefined) => {
       const projectIds = projects.map((p: any) => p.id);
       const projectTitleMap: Record<string, string> = {};
       projects.forEach((p: any) => { projectTitleMap[p.id] = p.title; });
+      projectTitleMapRef.current = projectTitleMap;
+      projectIdsRef.current = projectIds;
 
-      // Fetch learning units
+      // Fetch learning units (first page, lightweight — no questions column)
       const { data: dbUnits, error: unitsError } = await supabase
         .from('learning_units')
-        .select('*')
+        .select(UNIT_LIST_COLUMNS)
         .in('project_id', projectIds)
-        .order('created_at', { ascending: true });
+        .order('created_at', { ascending: true })
+        .range(0, PAGE_SIZE - 1);
 
       if (unitsError) throw unitsError;
 
@@ -59,34 +74,86 @@ export const useLearningUnits = (userId: string | undefined) => {
         return;
       }
 
-      // Check if any projects are missing units
-      const projectsWithUnits = new Set(dbUnits.map((u: any) => String(u.project_id)));
-      const projectsMissing = projects.filter((p: any) => !projectsWithUnits.has(String(p.id)));
-
-      if (projectsMissing.length > 0) {
-        setIsGenerating(true);
-        for (const project of projectsMissing) {
-          try {
-            await supabase.functions.invoke('generate-learning-units', {
-              body: { projectId: project.id },
-            });
-          } catch (e) {
-            console.error('Failed to trigger unit generation for', project.id, e);
-          }
-        }
-        startPolling(projectIds, projectTitleMap);
-      }
-
+      // Show existing units immediately
       const mapped = dbUnits.map((u: any) =>
         mapDbUnitToLearningUnit(u, projectTitleMap[u.project_id] || 'Unknown')
       );
       setUnits(mapped);
+      setHasMore(dbUnits.length >= PAGE_SIZE);
+
+      // Generate missing project units in background (non-blocking)
+      const projectsWithUnits = new Set(dbUnits.map((u: any) => String(u.project_id)));
+      const projectsMissing = projects.filter((p: any) => !projectsWithUnits.has(String(p.id)));
+
+      if (projectsMissing.length > 0) {
+        // Fire-and-forget: generate in background, don't block UI
+        for (const project of projectsMissing) {
+          supabase.functions.invoke('generate-learning-units', {
+            body: { projectId: project.id },
+          }).catch((e) => {
+            console.error('Failed to trigger unit generation for', project.id, e);
+          });
+        }
+        startPolling(projectIds, projectTitleMap);
+      }
     } catch (error) {
       console.error('Failed to fetch learning units:', error);
     } finally {
       setIsLoading(false);
     }
   }, [userId]);
+
+  const fetchMoreUnits = useCallback(async () => {
+    if (!userId || !hasMore || isLoading) return;
+    const nextPage = page + 1;
+    setIsLoading(true);
+
+    try {
+      const { data: dbUnits, error } = await supabase
+        .from('learning_units')
+        .select(UNIT_LIST_COLUMNS)
+        .in('project_id', projectIdsRef.current)
+        .order('created_at', { ascending: true })
+        .range(nextPage * PAGE_SIZE, (nextPage + 1) * PAGE_SIZE - 1);
+
+      if (error) throw error;
+
+      if (!dbUnits || dbUnits.length === 0) {
+        setHasMore(false);
+      } else {
+        const mapped = dbUnits.map((u: any) =>
+          mapDbUnitToLearningUnit(u, projectTitleMapRef.current[u.project_id] || 'Unknown')
+        );
+        setUnits((prev) => {
+          const existingIds = new Set(prev.map((u) => u.id));
+          const newUnits = mapped.filter((u) => !existingIds.has(u.id));
+          return [...prev, ...newUnits];
+        });
+        setPage(nextPage);
+        setHasMore(dbUnits.length >= PAGE_SIZE);
+      }
+    } catch (error) {
+      console.error('Failed to fetch more learning units:', error);
+    } finally {
+      setIsLoading(false);
+    }
+  }, [userId, hasMore, isLoading, page]);
+
+  const fetchUnitQuestions = useCallback(async (unitId: string): Promise<QuizQuestion[]> => {
+    try {
+      const { data, error } = await supabase
+        .from('learning_units')
+        .select('questions')
+        .eq('id', unitId)
+        .single();
+
+      if (error || !data) return [];
+      return filterValidQuestions(data.questions || []);
+    } catch (error) {
+      console.error('Failed to fetch unit questions:', error);
+      return [];
+    }
+  }, []);
 
   const startPolling = useCallback((projectIds: any[], projectTitleMap: Record<string, string>) => {
     let attempts = 0;
@@ -107,7 +174,7 @@ export const useLearningUnits = (userId: string | undefined) => {
       try {
         const { data: dbUnits, error } = await supabase
           .from('learning_units')
-          .select('*')
+          .select(UNIT_LIST_COLUMNS)
           .in('project_id', projectIds)
           .order('created_at', { ascending: true });
 
@@ -155,11 +222,11 @@ export const useLearningUnits = (userId: string | undefined) => {
       const { error } = await supabase
         .from('learning_units')
         .update({
-          completed,
+          is_completed: completed,
           best_score: Math.max(currentBest, percentage),
           stars: Math.max(stars, 0),
           attempts: currentAttempts + 1,
-          updated_at: new Date().toISOString(),
+          last_attempted_at: new Date().toISOString(),
         })
         .eq('id', unitId);
 
@@ -195,7 +262,10 @@ export const useLearningUnits = (userId: string | undefined) => {
     units,
     isLoading,
     isGenerating,
+    hasMore,
     fetchUnits,
+    fetchMoreUnits,
+    fetchUnitQuestions,
     updateUnitProgress,
     cleanup,
   };

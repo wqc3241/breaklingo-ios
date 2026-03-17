@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { Check } from 'lucide-react-native';
+import { colors } from '../../lib/theme';
 import type { QuizQuestion } from '../../lib/types';
 
 interface Props {
@@ -38,7 +39,6 @@ const MultipleSelectQ: React.FC<Props> = ({ question, onAnswer }) => {
 
   return (
     <View style={styles.container}>
-      <Text style={styles.questionText}>{question.question}</Text>
       <Text style={styles.hintText}>Select all that apply</Text>
 
       <View style={styles.optionsContainer}>
@@ -103,13 +103,6 @@ const styles = StyleSheet.create({
     width: '100%',
     alignItems: 'center',
   },
-  questionText: {
-    fontSize: 18,
-    color: '#525252',
-    textAlign: 'center',
-    lineHeight: 26,
-    marginBottom: 4,
-  },
   hintText: {
     fontSize: 14,
     color: '#A1A1A1',
@@ -133,23 +126,23 @@ const styles = StyleSheet.create({
   },
   optionSelected: {
     backgroundColor: '#FFF5EA',
-    borderWidth: 2,
+    borderWidth: 1,
     borderColor: '#E8550C',
   },
   optionCorrect: {
-    backgroundColor: '#D1FAE5',
+    backgroundColor: colors.correctBg,
     borderWidth: 1,
-    borderColor: '#34D399',
+    borderColor: colors.correctBorder,
   },
   optionMissed: {
-    backgroundColor: '#FEF3C7',
+    backgroundColor: colors.missedBg,
     borderWidth: 1,
-    borderColor: '#F59E0B',
+    borderColor: colors.missedBorder,
   },
   optionWrong: {
-    backgroundColor: '#FEE2E2',
+    backgroundColor: colors.wrongBg,
     borderWidth: 1,
-    borderColor: '#F87171',
+    borderColor: colors.wrongBorder,
   },
   checkboxRow: {
     flexDirection: 'row',
@@ -186,11 +179,11 @@ const styles = StyleSheet.create({
     fontWeight: '500',
   },
   optionTextCorrect: {
-    color: '#065F46',
+    color: colors.correctText,
     fontWeight: '600',
   },
   optionTextWrong: {
-    color: '#991B1B',
+    color: colors.wrongText,
     fontWeight: '600',
   },
   checkButton: {

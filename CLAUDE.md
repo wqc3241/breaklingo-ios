@@ -49,11 +49,17 @@ src/
 │   ├── StudyScreen.tsx        # Vocabulary, grammar, script tabs
 │   ├── PracticeScreen.tsx     # Practice sentences with TTS audio
 │   ├── ProjectsScreen.tsx     # Saved projects list + search
-│   ├── QuizScreen.tsx         # Multiple-choice quiz from vocabulary
-│   ├── LearnScreen.tsx        # Learning path with unit progression
-│   └── TalkScreen.tsx         # AI conversation practice with STT
+│   ├── QuizScreen.tsx         # Quiz dispatcher with QuizQuestionShell wrapper
+│   ├── LearnScreen.tsx        # Learning path with paginated unit list
+│   ├── TalkScreen.tsx         # Thin orchestrator for talk views
+│   └── talk/                  # Talk screen split into views
+│       ├── TalkProjectSelect.tsx  # Project selection for conversation
+│       ├── TalkConversation.tsx   # Voice-first conversation (auto-listen)
+│       ├── TalkHistory.tsx        # Past conversation sessions
+│       └── TalkSummary.tsx        # Conversation complete with score
 ├── components/            # Reusable UI components
 │   ├── quiz/                  # Quiz question type components
+│   │   ├── QuizQuestionShell.tsx  # Shared wrapper: type banner + tappable TTS script
 │   │   ├── MultipleChoiceQ.tsx
 │   │   ├── TranslationQ.tsx
 │   │   ├── FillBlankQ.tsx
@@ -62,25 +68,29 @@ src/
 │   │   ├── WordArrangeQ.tsx
 │   │   ├── MatchPairsQ.tsx
 │   │   └── ReadAfterMeQ.tsx
+│   ├── YouTubePlayer.tsx      # Embedded YouTube player
 │   └── common/
+│       ├── EmptyState.tsx         # Reusable empty state (icon + title + subtitle)
+│       ├── LoadingState.tsx       # Reusable loading spinner
+│       ├── ErrorBoundary.tsx      # Crash protection wrapper
 │       ├── OnboardingGuide.tsx    # First-launch walkthrough overlay
 │       └── FeedbackDialog.tsx     # In-app feedback form
 ├── hooks/                 # Custom React hooks
 │   ├── useAuth.ts             # Auth state, sign in/up, Google OAuth, logout
 │   ├── useVideoProcessing.ts  # YouTube transcript pipeline (5 edge functions)
-│   ├── useProject.ts          # Project CRUD, auto-save, fetch, delete
-│   ├── useQuizData.ts         # Quiz question generation from vocab
+│   ├── useQuizData.ts         # Quiz question generation from vocab (fallback)
 │   ├── useTextToSpeech.ts     # TTS via generate-speech edge function + native AudioPlayerModule
-│   ├── useConversation.ts     # AI conversation management for Talk screen (uses messagesRef for stale closure safety)
-│   ├── useLearningUnits.ts    # Learning unit fetching/generation
+│   ├── useConversation.ts     # AI conversation with auto-listen after TTS
+│   ├── useLearningUnits.ts    # Paginated unit list + on-demand question fetch
 │   ├── useSearchHistory.ts    # YouTube search history persistence
 │   ├── useWhisperSTT.ts       # Speech-to-text via Whisper API
 │   └── useYouTubeSearch.ts    # YouTube video search
 ├── lib/                   # Core utilities
 │   ├── supabase.ts            # Supabase client (AsyncStorage adapter)
-│   ├── types.ts               # TypeScript interfaces (AppProject, VocabularyItem, etc.)
+│   ├── types.ts               # TypeScript interfaces + quiz sanitization + mapDbUnitToLearningUnit
 │   ├── constants.ts           # URLs, test account, languages, app scheme
-│   ├── theme.ts               # Centralized color theme (matches web app)
+│   ├── theme.ts               # Centralized color theme + getDifficultyColor()
+│   ├── dateUtils.ts           # Shared date formatting (formatRelativeDate)
 │   ├── conversationStorage.ts # Local conversation persistence
 │   ├── languageUtils.ts       # Language name/code utilities
 │   └── recommendedVideos.ts   # Curated video recommendations
@@ -135,7 +145,7 @@ AppNavigator
     ├── LearnTab → LearnStack
     │   ├── LearnScreen
     │   └── QuizScreen (modal)
-    ├── TalkTab → TalkScreen (project selection → conversation → history views)
+    ├── TalkTab → TalkScreen (voice-first: project select → auto-listen conversation → summary)
     └── MoreTab → MoreStack (popover menu to select)
         ├── StudyScreen
         ├── PracticeScreen
@@ -179,16 +189,18 @@ Status colors (correct/wrong, difficulty levels) are also in theme.ts.
 
 - **Bundle ID:** `com.qichaowang.breaklingo`
 - **URL Scheme:** `com.breaklingo.app` (for OAuth deep linking, configured in Info.plist)
-- **DEV_TEST_MODE:** `false` in `src/lib/constants.ts` — set to `true` for auto-login with test account.
+- **DEV_TEST_MODE:** `__DEV__` in `src/lib/constants.ts` — auto-login with test account in debug builds (simulator), real auth in release builds (device). No manual toggling needed.
 
 ## Dev Notes
 
 - Metro dev server runs on port 8081
-- 223+ Jest tests across 31 test suites — run with `npm test`
+- 218 Jest tests across 31 test suites — run with `npm test`
 - Test mocks for `lucide-react-native` and `react-native-svg` are in `jest.setup.js`
 - The `android/` directory exists but is untouched — this is iOS-focused
 - TTS/STT use native ObjC modules (`AudioPlayerModule`/`AudioRecorderModule`) — no Expo dependencies
 - Quiz scores persisted to AsyncStorage via `saveQuizScore`/`loadQuizScores` in QuizScreen.tsx
+- Embedded YouTube player via `react-native-youtube-iframe` + `react-native-webview` in StudyScreen
+- Simulator testing: debug build auto-logs in; release build on device uses real auth
 - Google OAuth uses `react-native-inappbrowser-reborn` for ASWebAuthenticationSession on iOS
 - **Build sandbox fix:** If Xcode build fails with `Sandbox: rsync deny` errors, pass `ENABLE_USER_SCRIPT_SANDBOXING=NO` to xcodebuild, or clean DerivedData
 - After adding native dependencies (e.g., `react-native-svg`), must do a full native rebuild (`npx react-native run-ios`), not just a Metro JS reload

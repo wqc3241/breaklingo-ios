@@ -3,6 +3,15 @@ import { render, fireEvent } from '@testing-library/react-native';
 import MatchPairsQ from '../../../src/components/quiz/MatchPairsQ';
 import type { QuizQuestion } from '../../../src/lib/types';
 
+// Mock useTextToSpeech
+const mockSpeak = jest.fn();
+jest.mock('../../../src/hooks/useTextToSpeech', () => ({
+  useTextToSpeech: () => ({
+    speak: mockSpeak,
+    isPlaying: false,
+  }),
+}));
+
 const mockQuestion: QuizQuestion = {
   id: 'q1',
   type: 'match_pairs',
@@ -17,11 +26,8 @@ const mockQuestion: QuizQuestion = {
 };
 
 describe('MatchPairsQ', () => {
-  it('renders the question', () => {
-    const { getByText } = render(
-      <MatchPairsQ question={mockQuestion} onAnswer={jest.fn()} />
-    );
-    expect(getByText('Match the pairs')).toBeTruthy();
+  beforeEach(() => {
+    jest.clearAllMocks();
   });
 
   it('renders column headers', () => {
@@ -94,5 +100,13 @@ describe('MatchPairsQ', () => {
     expect(onAnswer).toHaveBeenCalledWith(false); // had errors
 
     jest.useRealTimers();
+  });
+
+  it('plays TTS when word is tapped', () => {
+    const { getByText } = render(
+      <MatchPairsQ question={mockQuestion} onAnswer={jest.fn()} />
+    );
+    fireEvent.press(getByText('猫'));
+    expect(mockSpeak).toHaveBeenCalledWith('猫');
   });
 });

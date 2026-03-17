@@ -93,6 +93,7 @@ describe('mapDbUnitToLearningUnit', () => {
       difficulty: 'beginner',
       order: 0,
       questions: expect.any(Array),
+      questionCount: 1,
       completed: true,
       bestScore: 85,
       stars: 2,

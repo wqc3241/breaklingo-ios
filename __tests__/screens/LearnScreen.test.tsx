@@ -48,7 +48,6 @@ describe('LearnScreen', () => {
     mockIsGenerating = true;
     const { getByText } = render(<LearnScreen />);
     expect(getByText('Generating lessons...')).toBeTruthy();
-    expect(getByText('This may take a moment')).toBeTruthy();
   });
 
   it('calls fetchUnits on mount', () => {

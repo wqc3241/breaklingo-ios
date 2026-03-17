@@ -22,6 +22,7 @@ import { useYouTubeSearch } from '../hooks/useYouTubeSearch';
 import { useSearchHistory } from '../hooks/useSearchHistory';
 import { TEST_TRANSCRIPT, TEST_VIDEO_TITLE, TEST_VIDEO_URL } from '../lib/constants';
 import { getRecommendationsByLanguage } from '../lib/recommendedVideos';
+import { getDifficultyColor } from '../lib/theme';
 import type { YouTubeSearchResult, CuratedVideo } from '../lib/types';
 
 const SCREEN_WIDTH = Dimensions.get('window').width;
@@ -182,10 +183,10 @@ const InputScreen: React.FC = () => {
         <Text style={styles.videoChannelGrid} numberOfLines={1}>{item.channelTitle}</Text>
         <View style={styles.curatedMeta}>
           <View style={[styles.levelBadge, {
-            backgroundColor: item.level === 'beginner' ? '#D1FAE5' : item.level === 'intermediate' ? '#FEF3C7' : '#FEE2E2',
+            backgroundColor: getDifficultyColor(item.level).bg,
           }]}>
             <Text style={[styles.levelText, {
-              color: item.level === 'beginner' ? '#065F46' : item.level === 'intermediate' ? '#92400E' : '#991B1B',
+              color: getDifficultyColor(item.level).text,
             }]}>{item.level}</Text>
           </View>
         </View>

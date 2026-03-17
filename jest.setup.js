@@ -215,6 +215,30 @@ jest.mock('@invertase/react-native-apple-authentication', () => ({
   },
 }));
 
+// Mock react-native-youtube-iframe
+jest.mock('react-native-youtube-iframe', () => {
+  const React = require('react');
+  return {
+    __esModule: true,
+    default: React.forwardRef((props, ref) => {
+      const { View } = require('react-native');
+      return React.createElement(View, { testID: 'youtube-player', ...props });
+    }),
+  };
+});
+
+// Mock react-native-webview
+jest.mock('react-native-webview', () => {
+  const React = require('react');
+  return {
+    __esModule: true,
+    default: React.forwardRef((props, ref) => {
+      const { View } = require('react-native');
+      return React.createElement(View, { testID: 'webview', ...props });
+    }),
+  };
+});
+
 // Mock react-native-url-polyfill
 jest.mock('react-native-url-polyfill/auto', () => {});
 

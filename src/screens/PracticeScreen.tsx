@@ -10,9 +10,11 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { MessageCircle, Volume2, FileText, RefreshCw } from 'lucide-react-native';
+import EmptyState from '../components/common/EmptyState';
 import { useProjectContext } from '../context/ProjectContext';
 import { useTextToSpeech } from '../hooks/useTextToSpeech';
 import { supabase } from '../lib/supabase';
+import { getDifficultyColor } from '../lib/theme';
 import type { PracticeSentence } from '../lib/types';
 
 type DifficultyFilter = 'all' | 'beginner' | 'intermediate' | 'advanced';
@@ -74,35 +76,21 @@ const PracticeScreen: React.FC = () => {
       ? practiceSentences
       : practiceSentences.filter((s) => s.difficulty === difficultyFilter);
 
-  const getDifficultyColor = (difficulty: string) => {
-    switch (difficulty) {
-      case 'beginner':
-        return { bg: '#D1FAE5', text: '#065F46' };
-      case 'intermediate':
-        return { bg: '#FEF3C7', text: '#92400E' };
-      case 'advanced':
-        return { bg: '#FEE2E2', text: '#991B1B' };
-      default:
-        return { bg: '#F3F4F6', text: '#374151' };
-    }
-  };
 
   if (!currentProject) {
     return (
       <SafeAreaView style={styles.container} edges={['bottom']}>
-        <View style={styles.emptyState}>
-          <View style={styles.emptyIconCircle}><MessageCircle size={36} color="#E8550C" /></View>
-          <Text style={styles.emptyTitle}>No practice sentences</Text>
-          <Text style={styles.emptySubtitle}>
-            Search for a YouTube video first, then come back here to practice sentences
-          </Text>
-        </View>
+        <EmptyState
+          icon={<MessageCircle size={36} color="#E8550C" />}
+          title="No practice sentences"
+          subtitle="Search for a YouTube video first, then come back here to practice sentences"
+        />
       </SafeAreaView>
     );
   }
 
   const renderSentence = ({ item }: { item: PracticeSentence }) => {
-    const colors = getDifficultyColor(item.difficulty);
+    const diffColors = getDifficultyColor(item.difficulty);
     const isCurrentlyPlaying = isPlaying && currentText === item.text;
 
     return (
@@ -122,8 +110,8 @@ const PracticeScreen: React.FC = () => {
           </View>
         </View>
         <View style={styles.tagsRow}>
-          <View style={[styles.badge, { backgroundColor: colors.bg }]}>
-            <Text style={[styles.badgeText, { color: colors.text }]}>{item.difficulty}</Text>
+          <View style={[styles.badge, { backgroundColor: diffColors.bg }]}>
+            <Text style={[styles.badgeText, { color: diffColors.text }]}>{item.difficulty}</Text>
           </View>
           {item.usedVocabulary?.slice(0, 3).map((word, i) => (
             <View key={i} style={[styles.badge, { backgroundColor: '#F3F4F6' }]}>

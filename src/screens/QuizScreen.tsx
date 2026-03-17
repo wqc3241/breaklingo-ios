@@ -11,6 +11,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { FileText, Trophy, Heart, Star, X } from 'lucide-react-native';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import ErrorBoundary from '../components/common/ErrorBoundary';
 import { useAuth } from '../hooks/useAuth';
 import { useLearningUnits } from '../hooks/useLearningUnits';
 import { useQuizData } from '../hooks/useQuizData';
@@ -22,6 +23,7 @@ import MultipleSelectQ from '../components/quiz/MultipleSelectQ';
 import WordArrangeQ from '../components/quiz/WordArrangeQ';
 import MatchPairsQ from '../components/quiz/MatchPairsQ';
 import ReadAfterMeQ from '../components/quiz/ReadAfterMeQ';
+import QuizQuestionShell from '../components/quiz/QuizQuestionShell';
 import type { QuizQuestion } from '../lib/types';
 
 const MAX_HEARTS = 3;
@@ -65,7 +67,8 @@ const QuizScreen: React.FC = () => {
   const route = useRoute<any>();
   const unitId = route.params?.unitId;
   const { user } = useAuth();
-  const { units, fetchUnits, updateUnitProgress } = useLearningUnits(user?.id);
+  const { updateUnitProgress, fetchUnitQuestions } = useLearningUnits(user?.id);
+  const unitTitle = route.params?.unitTitle;
   const { questions: fallbackQuestions, isLoading: fallbackLoading, hasProjects, regenerate } = useQuizData();
 
   const [currentIndex, setCurrentIndex] = useState(0);
@@ -78,21 +81,17 @@ const QuizScreen: React.FC = () => {
 
   useEffect(() => {
     if (unitId) {
-      // Load from learning unit
-      if (units.length === 0) {
-        fetchUnits();
-        return;
-      }
-      const unit = units.find((u) => u.id === unitId);
-      if (unit && unit.questions.length > 0) {
-        // Limit to 10 questions per unit
-        const limited = unit.questions.slice(0, 10);
-        setActiveQuestions(limited);
-        setTotalQuestions(limited.length);
+      // Lazy-load questions for this specific unit
+      const loadQuestions = async () => {
+        const questions = await fetchUnitQuestions(unitId);
+        if (questions.length > 0) {
+          const limited = questions.slice(0, 10);
+          setActiveQuestions(limited);
+          setTotalQuestions(limited.length);
+        }
         setIsLoading(false);
-      } else {
-        setIsLoading(false);
-      }
+      };
+      loadQuestions();
     } else {
       // Fallback to old quiz mode
       if (!fallbackLoading) {
@@ -101,7 +100,7 @@ const QuizScreen: React.FC = () => {
         setIsLoading(false);
       }
     }
-  }, [unitId, units, fallbackQuestions, fallbackLoading, fetchUnits]);
+  }, [unitId, fallbackQuestions, fallbackLoading, fetchUnitQuestions]);
 
   const handleAnswer = useCallback(
     (isCorrect: boolean) => {
@@ -137,7 +136,6 @@ const QuizScreen: React.FC = () => {
         await updateUnitProgress(unitId, finalScore);
       }
 
-      const unit = unitId ? units.find((u) => u.id === unitId) : undefined;
       await saveQuizScore({
         id: `quiz-${Date.now()}`,
         score,
@@ -145,11 +143,11 @@ const QuizScreen: React.FC = () => {
         percentage,
         stars,
         unitId: unitId || undefined,
-        unitTitle: unit?.title,
+        unitTitle: unitTitle || undefined,
         date: new Date().toISOString(),
       });
     }
-  }, [unitId, score, totalQuestions, updateUnitProgress, units]);
+  }, [unitId, unitTitle, score, totalQuestions, updateUnitProgress]);
 
   useEffect(() => {
     if (isComplete) {
@@ -168,27 +166,85 @@ const QuizScreen: React.FC = () => {
   };
 
   const renderQuestion = (question: QuizQuestion) => {
+    let typeLabel: string;
+    let scriptText: string | undefined;
+    let component: React.ReactNode;
+
     switch (question.type) {
       case 'multiple_choice':
-      case 'tell_meaning':
-        return <MultipleChoiceQ question={question} onAnswer={handleAnswer} />;
-      case 'translation':
-        return <TranslationQ question={question} onAnswer={handleAnswer} />;
-      case 'fill_blank':
-        return <FillBlankQ question={question} onAnswer={handleAnswer} />;
+      case 'tell_meaning': {
+        typeLabel = question.type === 'tell_meaning' ? 'Vocabulary' : 'Multiple Choice';
+        // Extract learning language text: prefer originalText, else parse from question string
+        // Question format is often: "What does 'こんにちは' mean?"
+        let mcScript = question.originalText;
+        if (!mcScript && question.question) {
+          const match = question.question.match(/[''""](.+?)[''""]|[「」](.+?)[「」]/);
+          if (match) {
+            mcScript = match[1] || match[2];
+          }
+        }
+        scriptText = mcScript;
+        component = <MultipleChoiceQ question={question} onAnswer={handleAnswer} />;
+        break;
+      }
+      case 'translation': {
+        typeLabel = 'Translation';
+        let transScript = question.originalText || question.context || question.question;
+        // Strip "Translate: " or "Translate:" prefix from AI-generated text
+        if (transScript) {
+          transScript = transScript.replace(/^Translate:\s*/i, '');
+        }
+        scriptText = transScript;
+        component = <TranslationQ question={question} onAnswer={handleAnswer} />;
+        break;
+      }
+      case 'fill_blank': {
+        typeLabel = 'Fill in the Blank';
+        let fillScript = question.sentence || question.question;
+        if (fillScript) {
+          fillScript = fillScript.replace(/^Fill in the blank:\s*/i, '');
+        }
+        scriptText = fillScript;
+        component = <FillBlankQ question={question} onAnswer={handleAnswer} />;
+        break;
+      }
       case 'listening':
-        return <ListeningQ question={question} onAnswer={handleAnswer} />;
+        typeLabel = 'Listening';
+        scriptText = question.audioText || question.originalText;
+        component = <ListeningQ question={question} onAnswer={handleAnswer} />;
+        break;
       case 'multiple_select':
-        return <MultipleSelectQ question={question} onAnswer={handleAnswer} />;
+        typeLabel = 'Select All';
+        scriptText = question.originalText;
+        component = <MultipleSelectQ question={question} onAnswer={handleAnswer} />;
+        break;
       case 'word_arrange':
-        return <WordArrangeQ question={question} onAnswer={handleAnswer} />;
+        typeLabel = 'Word Order';
+        scriptText = question.originalText;
+        component = <WordArrangeQ question={question} onAnswer={handleAnswer} />;
+        break;
       case 'match_pairs':
-        return <MatchPairsQ question={question} onAnswer={handleAnswer} />;
+        typeLabel = 'Match Pairs';
+        scriptText = undefined;
+        component = <MatchPairsQ question={question} onAnswer={handleAnswer} />;
+        break;
       case 'read_after_me':
-        return <ReadAfterMeQ question={question} onAnswer={handleAnswer} />;
+        typeLabel = 'Pronunciation';
+        scriptText = question.targetText || question.originalText;
+        component = <ReadAfterMeQ question={question} onAnswer={handleAnswer} />;
+        break;
       default:
-        return <MultipleChoiceQ question={question} onAnswer={handleAnswer} />;
+        typeLabel = 'Multiple Choice';
+        scriptText = question.originalText;
+        component = <MultipleChoiceQ question={question} onAnswer={handleAnswer} />;
+        break;
     }
+
+    return (
+      <QuizQuestionShell typeLabel={typeLabel} scriptText={scriptText}>
+        {component}
+      </QuizQuestionShell>
+    );
   };
 
   if (isLoading) {
@@ -305,9 +361,11 @@ const QuizScreen: React.FC = () => {
       </View>
 
       {/* Question */}
-      <ScrollView contentContainerStyle={styles.questionScroll} key={currentIndex}>
-        {renderQuestion(currentQuestion)}
-      </ScrollView>
+      <ErrorBoundary>
+        <ScrollView contentContainerStyle={styles.questionScroll} key={currentIndex}>
+          {renderQuestion(currentQuestion)}
+        </ScrollView>
+      </ErrorBoundary>
     </SafeAreaView>
   );
 };

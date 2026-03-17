@@ -51,3 +51,19 @@ export const colors = {
   overlayLight: 'rgba(0,0,0,0.4)',
   white: '#FFFFFF',
 };
+
+export const getDifficultyColor = (level?: string): { bg: string; text: string } => {
+  switch (level) {
+    case 'beginner':
+    case 'easy':
+      return { bg: colors.beginnerBg, text: colors.beginnerText };
+    case 'intermediate':
+    case 'medium':
+      return { bg: colors.intermediateBg, text: colors.intermediateText };
+    case 'advanced':
+    case 'hard':
+      return { bg: colors.advancedBg, text: colors.advancedText };
+    default:
+      return { bg: colors.defaultBg, text: colors.defaultText };
+  }
+};

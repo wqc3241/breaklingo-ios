@@ -46,8 +46,12 @@ const MoreStackNav = createNativeStackNavigator<MoreStackParamList>();
 const ProfileHeaderButton = () => {
   const { toggle } = useContext(ProfileContext);
   return (
-    <TouchableOpacity style={styles.profileButton} onPress={toggle}>
-      <CircleUserRound size={24} color={colors.foreground} />
+    <TouchableOpacity
+      style={styles.profileButton}
+      onPress={toggle}
+      hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+    >
+      <CircleUserRound size={22} color={colors.foreground} strokeWidth={1.5} />
     </TouchableOpacity>
   );
 };
@@ -279,7 +283,6 @@ const styles = StyleSheet.create({
   },
   profileButton: {
     marginRight: 16,
-    padding: 4,
   },
   profileMenu: {
     position: 'absolute',

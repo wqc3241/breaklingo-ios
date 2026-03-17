@@ -13,18 +13,11 @@ const mockQuestion: QuizQuestion = {
 };
 
 describe('MultipleChoiceQ', () => {
-  it('renders the question text', () => {
+  it('renders options (question text handled by shell)', () => {
     const { getByText } = render(
       <MultipleChoiceQ question={mockQuestion} onAnswer={jest.fn()} />
     );
-    expect(getByText('What does "猫" mean?')).toBeTruthy();
-  });
-
-  it('renders the original text when provided', () => {
-    const { getByText } = render(
-      <MultipleChoiceQ question={mockQuestion} onAnswer={jest.fn()} />
-    );
-    expect(getByText('猫')).toBeTruthy();
+    expect(getByText('Cat')).toBeTruthy();
   });
 
   it('renders all four options', () => {
@@ -68,11 +61,11 @@ describe('MultipleChoiceQ', () => {
     expect(onAnswer).toHaveBeenCalledTimes(1);
   });
 
-  it('does not show original text when not provided', () => {
-    const questionNoOriginal = { ...mockQuestion, originalText: undefined };
+  it('does not render originalText or question text (shell handles it)', () => {
     const { queryByText } = render(
-      <MultipleChoiceQ question={questionNoOriginal} onAnswer={jest.fn()} />
+      <MultipleChoiceQ question={mockQuestion} onAnswer={jest.fn()} />
     );
     expect(queryByText('猫')).toBeNull();
+    expect(queryByText('What does "猫" mean?')).toBeNull();
   });
 });
