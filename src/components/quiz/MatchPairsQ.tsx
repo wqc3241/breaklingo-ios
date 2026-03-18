@@ -11,7 +11,7 @@ interface Props {
 
 const MatchPairsQ: React.FC<Props> = ({ question, onAnswer }) => {
   const { speak } = useTextToSpeech();
-  const pairs = question.pairs || [];
+  const pairs = useMemo(() => question.pairs || [], [question.pairs]);
 
   const shuffledWords = useMemo(
     () => [...pairs].sort(() => Math.random() - 0.5).map((p) => p.word),

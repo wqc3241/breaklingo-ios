@@ -20,7 +20,7 @@ const ReadAfterMeQ: React.FC<Props> = ({ question, onAnswer }) => {
   const [submitted, setSubmitted] = useState(false);
   const [retryMessage, setRetryMessage] = useState<string | null>(null);
 
-  const targetText = question.targetText || question.originalText || question.correctAnswer;
+  const targetText = question.targetText || question.originalText || question.correctAnswer || '';
 
   const startRecording = async () => {
     try {
@@ -63,7 +63,7 @@ const ReadAfterMeQ: React.FC<Props> = ({ question, onAnswer }) => {
       if (!session) throw new Error('Not authenticated');
 
       const formData = new FormData();
-      formData.append('audio', {
+      formData.append('file', {
         uri,
         type: 'audio/m4a',
         name: 'recording.m4a',

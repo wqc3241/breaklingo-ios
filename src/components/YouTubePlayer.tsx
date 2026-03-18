@@ -1,8 +1,11 @@
 import React, { useState, useCallback } from 'react';
-import { View, Text, StyleSheet, ActivityIndicator, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet, ActivityIndicator, TouchableOpacity, Dimensions } from 'react-native';
 import YoutubePlayer from 'react-native-youtube-iframe';
 import { ExternalLink } from 'lucide-react-native';
 import { colors } from '../lib/theme';
+
+const SCREEN_WIDTH = Dimensions.get('window').width;
+const PLAYER_HEIGHT = Math.round((SCREEN_WIDTH - 32) * 9 / 16); // 16:9 aspect ratio, accounting for marginHorizontal: 16
 
 interface YouTubePlayerProps {
   videoId: string;
@@ -44,7 +47,7 @@ const YouTubePlayerComponent: React.FC<YouTubePlayerProps> = ({ videoId, onOpenE
         </View>
       )}
       <YoutubePlayer
-        height={200}
+        height={PLAYER_HEIGHT}
         videoId={videoId}
         play={false}
         onReady={onReady}
@@ -74,7 +77,7 @@ const styles = StyleSheet.create({
     top: 0,
     left: 0,
     right: 0,
-    height: 200,
+    height: PLAYER_HEIGHT,
     zIndex: 1,
     alignItems: 'center',
     justifyContent: 'center',
