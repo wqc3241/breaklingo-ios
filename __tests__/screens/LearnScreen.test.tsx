@@ -2,6 +2,15 @@ import React from 'react';
 import { render, waitFor } from '@testing-library/react-native';
 import LearnScreen from '../../src/screens/LearnScreen';
 
+// Mock React Navigation hooks
+jest.mock('@react-navigation/native', () => ({
+  useNavigation: () => ({ navigate: jest.fn() }),
+  useFocusEffect: (cb: () => void) => {
+    const React = require('react');
+    React.useEffect(() => { cb(); }, []);
+  },
+}));
+
 // Mock hooks
 const mockFetchUnits = jest.fn();
 const mockCleanup = jest.fn();
@@ -20,7 +29,11 @@ jest.mock('../../src/hooks/useLearningUnits', () => ({
     units: mockUnits,
     isLoading: mockIsLoading,
     isGenerating: mockIsGenerating,
+    hasMore: false,
+    totalUnits: 0,
+    totalProjects: 0,
     fetchUnits: mockFetchUnits,
+    fetchMoreUnits: jest.fn(),
     cleanup: mockCleanup,
   }),
 }));

@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import {
   View,
   Text,
@@ -9,7 +9,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { GraduationCap, Star, Check, Lock, Trophy } from 'lucide-react-native';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import EmptyState from '../components/common/EmptyState';
 import LoadingState from '../components/common/LoadingState';
 import { useAuth } from '../hooks/useAuth';
@@ -26,11 +26,17 @@ const LearnScreen: React.FC = () => {
   const { units, isLoading, isGenerating, hasMore, totalUnits, totalProjects, fetchUnits, fetchMoreUnits, cleanup } = useLearningUnits(user?.id);
   const [recentScores, setRecentScores] = useState<QuizScoreEntry[]>([]);
 
+  // Refresh units and scores every time the Learn tab gains focus
+  useFocusEffect(
+    useCallback(() => {
+      fetchUnits();
+      loadQuizScores().then((scores) => setRecentScores(scores.slice(0, 1)));
+    }, [fetchUnits])
+  );
+
   useEffect(() => {
-    fetchUnits();
-    loadQuizScores().then((scores) => setRecentScores(scores.slice(0, 1)));
     return () => cleanup();
-  }, [fetchUnits, cleanup]);
+  }, [cleanup]);
 
   const isUnitUnlocked = (unit: LearningUnit, index: number): boolean => {
     if (index === 0) return true;

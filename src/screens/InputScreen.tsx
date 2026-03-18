@@ -12,7 +12,7 @@ import {
   Keyboard,
   Dimensions,
 } from 'react-native';
-import { Search, Clock, X, ChevronDown, ChevronRight, Play, BookOpen, Sparkles } from 'lucide-react-native';
+import { Search, Clock, X, BookOpen, Sparkles } from 'lucide-react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import { useVideoProcessing } from '../hooks/useVideoProcessing';
@@ -33,14 +33,12 @@ const CARD_WIDTH = (SCREEN_WIDTH - CARD_PADDING * 2 - CARD_GAP) / 2;
 
 const InputScreen: React.FC = () => {
   const [searchQuery, setSearchQuery] = useState('');
-  const [youtubeUrl, setYoutubeUrl] = useState('');
-  const [showUrlInput, setShowUrlInput] = useState(false);
   const [selectedRecLang, setSelectedRecLang] = useState('Japanese');
   const [showHistory, setShowHistory] = useState(false);
   const navigation = useNavigation<any>();
 
   const { user } = useAuth();
-  const { isProcessing, processingStep, extractVideoId, processVideo, analyzeContentWithAI, generatePracticeSentences, setIsProcessing, setProcessingStep, cleanup } = useVideoProcessing();
+  const { isProcessing, processingStep, extractVideoId, fetchAvailableLanguages, processVideo, analyzeContentWithAI, generatePracticeSentences, setIsProcessing, setProcessingStep, cleanup } = useVideoProcessing();
   const { currentProject, setCurrentProject, autoSaveProject } = useProjectContext();
   const { results, isSearching, hasSearched, search, clearSearch } = useYouTubeSearch();
   const { history, addToHistory, removeFromHistory, clearHistory } = useSearchHistory();
@@ -50,14 +48,28 @@ const InputScreen: React.FC = () => {
     return () => cleanup();
   }, [cleanup]);
 
+  const isYouTubeUrl = (text: string): boolean => {
+    return /(?:youtube\.com|youtu\.be|m\.youtube\.com)/i.test(text);
+  };
+
   const handleSearch = useCallback(async () => {
     const query = searchQuery.trim();
     if (!query) return;
     Keyboard.dismiss();
     setShowHistory(false);
-    await addToHistory(query);
-    await search(query);
-  }, [searchQuery, search, addToHistory]);
+
+    if (isYouTubeUrl(query)) {
+      const videoId = extractVideoId(query);
+      if (!videoId) {
+        Alert.alert('Invalid URL', 'Please enter a valid YouTube video URL');
+        return;
+      }
+      handleVideoSelect(videoId);
+    } else {
+      await addToHistory(query);
+      await search(query);
+    }
+  }, [searchQuery, search, addToHistory, extractVideoId]);
 
   const handleHistorySelect = useCallback(async (query: string) => {
     setSearchQuery(query);
@@ -67,14 +79,17 @@ const InputScreen: React.FC = () => {
     await search(query);
   }, [search, addToHistory]);
 
-  const handleVideoSelect = async (videoId: string) => {
+  const handleVideoSelect = async (videoId: string, knownLanguageName?: string) => {
     if (isProcessing) return;
 
     try {
+      // For curated videos, we know the language. For search results and URLs,
+      // let the edge function detect the language via YouTube Data API.
+      // Don't guess from available captions — that picks the wrong language.
       const project = await processVideo(
         videoId,
-        undefined, // auto-detect language
-        undefined,
+        undefined, // Let edge function detect via YouTube Data API
+        knownLanguageName, // Only set for curated videos
         user?.id,
         (updatedProject) => {
           setCurrentProject(updatedProject);
@@ -84,28 +99,12 @@ const InputScreen: React.FC = () => {
 
       setCurrentProject(project);
       await autoSaveProject(project);
-      setYoutubeUrl('');
       setSearchQuery('');
       clearSearch();
       navigation.navigate('MoreTab', { screen: 'Study' });
     } catch {
       // Error already handled in processVideo
     }
-  };
-
-  const handleUrlSubmit = () => {
-    if (!youtubeUrl.trim()) {
-      Alert.alert('Error', 'Please enter a YouTube URL');
-      return;
-    }
-
-    const videoId = extractVideoId(youtubeUrl.trim());
-    if (!videoId) {
-      Alert.alert('Invalid URL', 'Please enter a valid YouTube video URL');
-      return;
-    }
-
-    handleVideoSelect(videoId);
   };
 
   const handleUseTestData = async () => {
@@ -172,7 +171,7 @@ const InputScreen: React.FC = () => {
     <TouchableOpacity
       key={item.videoId}
       style={styles.videoCardGrid}
-      onPress={() => handleVideoSelect(item.videoId)}
+      onPress={() => handleVideoSelect(item.videoId, item.language)}
       disabled={isProcessing}
     >
       <Image
@@ -231,7 +230,7 @@ const InputScreen: React.FC = () => {
             <Search size={18} color="#A1A1A1" />
             <TextInput
               style={styles.searchInput}
-              placeholder="Search YouTube videos..."
+              placeholder="Search or paste YouTube URL..."
               value={searchQuery}
               onChangeText={(text) => {
                 setSearchQuery(text);
@@ -291,41 +290,6 @@ const InputScreen: React.FC = () => {
             <Text style={styles.processingText}>{processingStep}</Text>
           </View>
         ) : null}
-
-        {/* URL Input (secondary) */}
-        <TouchableOpacity
-          style={styles.urlToggle}
-          onPress={() => setShowUrlInput(!showUrlInput)}
-        >
-          <View style={{flexDirection: 'row', alignItems: 'center', gap: 4}}>
-            {showUrlInput ? <ChevronDown size={14} color="#E8550C" /> : <ChevronRight size={14} color="#E8550C" />}
-            <Text style={{color: '#E8550C', fontSize: 14}}>{showUrlInput ? 'Hide URL input' : 'Paste YouTube URL instead'}</Text>
-          </View>
-        </TouchableOpacity>
-
-        {showUrlInput && (
-          <View style={styles.urlCard}>
-            <View style={styles.inputRow}>
-              <TextInput
-                style={styles.urlInput}
-                placeholder="Paste YouTube URL..."
-                value={youtubeUrl}
-                onChangeText={setYoutubeUrl}
-                autoCapitalize="none"
-                autoCorrect={false}
-                returnKeyType="go"
-                onSubmitEditing={handleUrlSubmit}
-              />
-              <TouchableOpacity
-                style={[styles.submitButton, isProcessing && styles.disabledButton]}
-                onPress={handleUrlSubmit}
-                disabled={isProcessing}
-              >
-                <Play size={12} color="#FFFFFF" fill="#FFFFFF" />
-              </TouchableOpacity>
-            </View>
-          </View>
-        )}
 
         {/* Search Results — 2-column grid */}
         {hasSearched && results.length > 0 && (
@@ -528,39 +492,6 @@ const styles = StyleSheet.create({
   processingText: {
     fontSize: 14,
     color: '#E8550C',
-  },
-  // URL toggle
-  urlToggle: {
-    paddingVertical: 8,
-    paddingHorizontal: 4,
-    marginBottom: 4,
-  },
-  urlCard: {
-    backgroundColor: '#fff',
-    borderRadius: 12,
-    padding: 12,
-    marginBottom: 12,
-  },
-  inputRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-  },
-  urlInput: {
-    flex: 1,
-    backgroundColor: '#F5F5F5',
-    borderRadius: 10,
-    paddingHorizontal: 14,
-    paddingVertical: 12,
-    fontSize: 16,
-  },
-  submitButton: {
-    backgroundColor: '#E8550C',
-    borderRadius: 10,
-    width: 44,
-    height: 44,
-    alignItems: 'center',
-    justifyContent: 'center',
   },
   disabledButton: {
     opacity: 0.5,

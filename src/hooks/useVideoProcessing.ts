@@ -49,6 +49,7 @@ export const useVideoProcessing = () => {
           transcript: data.transcript as string,
           videoTitle: (data.videoTitle || `Video Lesson - ${videoId}`) as string,
           captionsAvailable: (data.captionsAvailable || false) as boolean,
+          detectedLanguage: data.detectedLanguage as string | undefined,
         };
       }
 
@@ -78,7 +79,7 @@ export const useVideoProcessing = () => {
     return {
       vocabulary: (data.vocabulary || []) as VocabularyItem[],
       grammar: (data.grammar || []) as GrammarItem[],
-      detectedLanguage: (data.detectedLanguage || 'Unknown') as string,
+      detectedLanguage: (data.detectedLanguage || '') as string,
     };
   };
 
@@ -233,14 +234,20 @@ export const useVideoProcessing = () => {
         return pendingProject;
       }
 
-      const { transcript, videoTitle } = result as { transcript: string; videoTitle: string };
+      const { transcript, videoTitle, detectedLanguage: edgeFnLang } = result as {
+        transcript: string;
+        videoTitle: string;
+        detectedLanguage?: string;
+      };
+
+      // Use the edge function's detected language (from YouTube Data API) as the hint for AI analysis
+      const languageHint = selectedLanguageName || edgeFnLang;
 
       setProcessingStep('Analyzing content with AI...');
-      const { vocabulary, grammar, detectedLanguage: aiDetectedLang } = await analyzeContentWithAI(transcript, selectedLanguageName);
+      const { vocabulary, grammar, detectedLanguage: aiDetectedLang } = await analyzeContentWithAI(transcript, languageHint);
 
-      const finalLanguage = selectedLanguageName && selectedLanguageName !== 'Other'
-        ? selectedLanguageName
-        : aiDetectedLang;
+      // Priority: AI detection from actual content > edge function detection > user-provided name
+      const finalLanguage = aiDetectedLang || edgeFnLang || selectedLanguageName || 'Unknown';
 
       if (vocabulary.length === 0 && grammar.length === 0) {
         Alert.alert('Analysis incomplete', 'AI could not extract vocabulary or grammar from this video. The transcript has been saved — you can try regenerating later.');
@@ -287,7 +294,7 @@ export const useVideoProcessing = () => {
     setProcessingStep('Re-analyzing content with AI...');
 
     try {
-      const { vocabulary, grammar, detectedLanguage } = await analyzeContentWithAI(currentProject.script);
+      const { vocabulary, grammar, detectedLanguage } = await analyzeContentWithAI(currentProject.script, currentProject.detectedLanguage);
 
       setProcessingStep('Generating practice sentences...');
       const practiceSentences = await generatePracticeSentences(vocabulary, grammar, detectedLanguage);

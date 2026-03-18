@@ -1,0 +1,362 @@
+
+import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { z } from "https://deno.land/x/zod@v3.22.4/mod.ts";
+import { CORS_HEADERS, TranscriptResult } from './types.ts';
+
+interface TranscriptSegment {
+  text?: string;
+  content?: string;
+}
+
+/**
+ * Get all available YouTube API keys for rotation on quota errors.
+ */
+function getYouTubeApiKeys(): string[] {
+  const keys: string[] = [];
+  const primary = Deno.env.get('YOUTUBE_API_KEY');
+  if (primary) keys.push(primary);
+  for (let i = 2; i <= 4; i++) {
+    const key = Deno.env.get(`YOUTUBE_API_KEY_${i}`);
+    if (key) keys.push(key);
+  }
+  return keys;
+}
+
+/**
+ * Fetch the video's default audio language from YouTube Data API v3.
+ * Rotates through up to 4 API keys on quota/auth errors (403/429).
+ * Returns a BCP-47 language code (e.g., "ja", "en", "ko") or null if unavailable.
+ */
+async function fetchVideoLanguage(videoId: string): Promise<string | null> {
+  const apiKeys = getYouTubeApiKeys();
+  if (apiKeys.length === 0) {
+    console.warn('=== YOUTUBE API: No API keys configured, skipping language detection');
+    return null;
+  }
+
+  console.log(`=== YOUTUBE API: ${apiKeys.length} key(s) available for rotation`);
+
+  for (let i = 0; i < apiKeys.length; i++) {
+    try {
+      const url = `https://www.googleapis.com/youtube/v3/videos?part=snippet&id=${videoId}&key=${apiKeys[i]}`;
+      console.log(`=== YOUTUBE API: Fetching video language (key ${i + 1}/${apiKeys.length})`);
+
+      const response = await fetch(url);
+
+      if (response.status === 403 || response.status === 429) {
+        console.warn(`=== YOUTUBE API: Key ${i + 1} quota/auth error (${response.status}), trying next...`);
+        continue;
+      }
+
+      if (!response.ok) {
+        console.warn('=== YOUTUBE API: Request failed:', response.status);
+        return null;
+      }
+
+      const data = await response.json();
+      if (!data.items || data.items.length === 0) {
+        console.warn('=== YOUTUBE API: Video not found');
+        return null;
+      }
+
+      const snippet = data.items[0].snippet;
+      const audioLang = snippet.defaultAudioLanguage;
+      const defaultLang = snippet.defaultLanguage;
+      const detectedLang = audioLang || defaultLang || null;
+
+      if (detectedLang) {
+        const normalized = detectedLang.split('-')[0].toLowerCase();
+        console.log(`=== YOUTUBE API: Detected language: ${detectedLang} (normalized: ${normalized}) [key ${i + 1}]`);
+        return normalized;
+      }
+
+      console.log('=== YOUTUBE API: No language info available for this video');
+      return null;
+    } catch (error) {
+      console.warn(`=== YOUTUBE API: Key ${i + 1} error:`, error);
+      continue;
+    }
+  }
+
+  console.warn('=== YOUTUBE API: All keys exhausted, could not detect language');
+  return null;
+}
+
+async function fetchVideoTitle(videoId: string, supadataApiKey: string): Promise<string> {
+  try {
+    const videoUrl = `https://www.youtube.com/watch?v=${videoId}`;
+    const response = await fetch(
+      `https://api.supadata.ai/v1/metadata?url=${encodeURIComponent(videoUrl)}`,
+      {
+        method: 'GET',
+        headers: { 'x-api-key': supadataApiKey },
+      }
+    );
+    
+    if (response.ok) {
+      const data = await response.json();
+      if (data.title) {
+        console.log('=== SUPADATA: Fetched video title:', data.title);
+        return data.title;
+      }
+    }
+  } catch (error) {
+    console.warn('=== SUPADATA: Failed to fetch video title:', error);
+  }
+  return `Video ${videoId}`;
+}
+
+async function pollJobStatus(jobId: string, supadataApiKey: string): Promise<string> {
+  const maxPollingAttempts = 24; // 24 attempts * 10 seconds = 240 seconds max
+  const pollingInterval = 10000; // 10 seconds between checks to avoid rate limiting
+  
+  console.log(`=== SUPADATA: Polling job status for jobId: ${jobId}`);
+  
+  for (let attempt = 0; attempt < maxPollingAttempts; attempt++) {
+    const response = await fetch(`https://api.supadata.ai/v1/transcript/${jobId}`, {
+      method: 'GET',
+      headers: {
+        'x-api-key': supadataApiKey,
+      },
+    });
+    
+    if (!response.ok) {
+      throw new Error(`Failed to poll job status: ${response.status}`);
+    }
+    
+    const data = await response.json();
+    console.log(`=== SUPADATA: Job status (attempt ${attempt + 1}/${maxPollingAttempts}):`, data.status);
+    
+    if (data.status === 'completed') {
+      console.log('=== SUPADATA: Job completed successfully');
+      return data.content; // Return the transcript content
+    } else if (data.status === 'failed') {
+      console.error('=== SUPADATA: Job failed with data:', JSON.stringify(data));
+      // Provide a more helpful error message
+      const errorDetail = data.error || data.message || 'Unknown error';
+      throw new Error(`Transcript generation failed: ${errorDetail}. This video may not have accessible captions or the service encountered an issue processing it.`);
+    }
+    // Status is 'queued' or 'active', continue polling
+    
+    if (attempt < maxPollingAttempts - 1) {
+      await new Promise(resolve => setTimeout(resolve, pollingInterval));
+    }
+  }
+  
+  throw new Error('Transcript generation timed out after 4 minutes. This video may require more processing time. Please try again in a few minutes.');
+}
+
+async function extractWithSupadata(videoId: string, languageCode?: string): Promise<string | null> {
+  const supadataApiKey = Deno.env.get('SUPADATA_API_KEY');
+  if (!supadataApiKey) {
+    console.error('=== SUPADATA: API key not configured');
+    throw new Error('Supadata API key not configured');
+  }
+
+  // Build YouTube URL
+  const videoUrl = `https://www.youtube.com/watch?v=${videoId}`;
+  
+  // Build API URL with parameters
+  let apiUrl = `https://api.supadata.ai/v1/transcript?url=${encodeURIComponent(videoUrl)}&text=true&mode=auto`;
+  
+  if (languageCode) {
+    apiUrl += `&lang=${languageCode}`;
+    console.log('=== SUPADATA: Requesting transcript in language:', languageCode);
+  }
+  
+  console.log('=== SUPADATA: Making initial request to:', apiUrl);
+
+  // Make initial request
+  const response = await fetch(apiUrl, {
+    method: 'GET',
+    headers: {
+      'x-api-key': supadataApiKey,
+    },
+  });
+
+  console.log(`=== SUPADATA: Response status: ${response.status}`);
+
+  // Handle 202 Accepted - async job created
+  if (response.status === 202) {
+    const jobData = await response.json();
+    console.log('=== SUPADATA: Transcript generation in progress, jobId:', jobData.jobId);
+    
+    if (!jobData.jobId) {
+      throw new Error('No job ID returned from API');
+    }
+    
+    // Return immediately with pending status and jobId
+    // Polling will be handled by the frontend calling poll-transcript-job
+    throw new Error(`PENDING:${jobData.jobId}`);
+  }
+
+  // Handle immediate errors
+  if (!response.ok) {
+    const errorText = await response.text();
+    console.error('=== SUPADATA: API error:', response.status, errorText);
+    
+    if (response.status === 404) {
+      throw new Error('This video does not have captions available or cannot be accessed');
+    } else if (response.status === 429) {
+      throw new Error('Rate limit exceeded. Please try again in a few minutes');
+    } else if (response.status === 401 || response.status === 403) {
+      throw new Error('API authentication failed');
+    }
+    
+    throw new Error(`Failed to extract transcript: ${response.status}`);
+  }
+
+  // Handle 200 OK - immediate response
+  const data = await response.json();
+  console.log('=== SUPADATA: Response received (immediate), processing transcript...');
+
+  // Extract content
+  if (typeof data.content === 'string') {
+    console.log('=== SUPADATA: Successfully extracted transcript, length:', data.content.length);
+    return data.content;
+  } else if (data.content && Array.isArray(data.content)) {
+    const transcript = (data.content as TranscriptSegment[])
+      .map((segment) => segment.text || segment.content || '')
+      .filter((text: string) => text.trim().length > 0)
+      .join(' ');
+    console.log('=== SUPADATA: Successfully extracted transcript, length:', transcript.length);
+    return transcript;
+  }
+  
+  console.log('=== SUPADATA: No content found in response');
+  return null;
+}
+
+async function extractTranscript(videoId: string, languageCode?: string): Promise<string> {
+  try {
+    console.log('=== Starting transcript extraction for video:', videoId, 'language:', languageCode || 'auto');
+    
+    // Try Supadata API with language code
+    const transcript = await extractWithSupadata(videoId, languageCode);
+    
+    if (transcript && transcript.length > 50) {
+      console.log('=== Successfully extracted transcript via Supadata');
+      return transcript;
+    }
+
+    throw new Error('Could not extract transcript - no content returned');
+  } catch (error) {
+    console.error('=== Transcript extraction error:', error);
+    throw error;
+  }
+}
+
+serve(async (req) => {
+  if (req.method === 'OPTIONS') {
+    return new Response(null, { headers: CORS_HEADERS });
+  }
+
+  try {
+    // Validate input
+    const requestSchema = z.object({
+      videoId: z.string().regex(/^[a-zA-Z0-9_-]{11}$/, 'Invalid YouTube video ID format'),
+      languageCode: z.string().regex(/^[a-z]{2}(-[A-Z]{2})?$/, 'Invalid language code format').optional()
+    });
+    
+    const { videoId, languageCode } = requestSchema.parse(await req.json());
+
+    console.log('=== Extracting transcript for video ID:', videoId, 'language:', languageCode || 'auto');
+
+    // Determine the correct language for transcript extraction:
+    // 1. Use languageCode from client if provided
+    // 2. Otherwise, detect via YouTube Data API (defaultAudioLanguage)
+    // 3. If neither available, Supadata will use mode=auto
+    let effectiveLanguage = languageCode;
+    if (!effectiveLanguage) {
+      const detectedLang = await fetchVideoLanguage(videoId);
+      if (detectedLang) {
+        effectiveLanguage = detectedLang;
+        console.log('=== Using YouTube API detected language:', effectiveLanguage);
+      } else {
+        console.log('=== No language detected, Supadata will auto-detect');
+      }
+    }
+
+    const supadataApiKey = Deno.env.get('SUPADATA_API_KEY') || '';
+    const videoTitle = await fetchVideoTitle(videoId, supadataApiKey);
+    const transcript = await extractTranscript(videoId, effectiveLanguage);
+    
+    if (!transcript || transcript.length < 50) {
+      const result: TranscriptResult = {
+        success: false,
+        error: 'Please select a video with more than 50 words.',
+        suggestion: 'The transcript from this video is too short for analysis. Please try a longer video with substantial spoken content.'
+      };
+
+      return new Response(JSON.stringify(result), {
+        status: 400,
+        headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' },
+      });
+    }
+
+    const result: TranscriptResult = {
+      success: true,
+      videoTitle,
+      transcript,
+      captionsAvailable: true,
+      transcriptionMethod: 'supadata',
+      detectedLanguage: effectiveLanguage,
+    };
+
+    return new Response(JSON.stringify(result), {
+      headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' },
+    });
+
+  } catch (error) {
+    console.error('Error in extract-transcript function:', error);
+    
+    const errorObj = error as Error;
+    // Determine user-friendly error message and suggestion
+    let errorMessage = errorObj.message || 'Failed to extract transcript';
+    let suggestion = 'Please check that the video URL is valid and try again.';
+    let statusCode = 500;
+    
+    if (errorObj.message.includes('Rate limit') || errorObj.message.includes('429')) {
+      errorMessage = 'Rate limit exceeded. Please try again in a few minutes.';
+      suggestion = 'The transcript service is temporarily rate limited. Wait a few minutes and try again.';
+      statusCode = 429;
+    } else if (errorObj.message.includes('API key') || errorObj.message.includes('authentication')) {
+      errorMessage = 'API configuration error';
+      suggestion = 'Please contact support - the transcript service is not properly configured.';
+    } else if (errorObj.message.includes('captions') || errorObj.message.includes('cannot be accessed')) {
+      errorMessage = 'This video does not have captions available.';
+      suggestion = 'Please try a different video that has captions or subtitles enabled.';
+    } else if (errorObj.message.includes('Transcript generation failed')) {
+      errorMessage = 'Unable to extract transcript from this video.';
+      suggestion = 'This video may not have accessible captions, or the transcript service encountered an issue. Please try a different video or try again later.';
+      statusCode = 400;
+    } else if (errorObj.message.includes('timed out')) {
+      errorMessage = 'Transcript generation is taking longer than expected.';
+      suggestion = 'This video requires AI transcript generation which is still processing. Please wait 3-5 minutes and try again.';
+      statusCode = 202;
+    } else if (errorObj.message.startsWith('PENDING:')) {
+      // Extract jobId from error message
+      const jobId = errorObj.message.substring(8);
+      return new Response(JSON.stringify({
+        success: true,
+        status: 'pending',
+        jobId: jobId,
+        message: 'Transcript generation started'
+      }), {
+        status: 202,
+        headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' },
+      });
+    }
+    
+    const result: TranscriptResult = {
+      success: false,
+      error: errorMessage,
+      suggestion
+    };
+
+    return new Response(JSON.stringify(result), {
+      status: statusCode,
+      headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' },
+    });
+  }
+});

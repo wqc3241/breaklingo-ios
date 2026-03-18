@@ -1,20 +1,27 @@
 # BreakLingo iOS - Todo
 
-## Pending
+## Pending — Batch 2 (User Feedback)
 
 ### UI Fixes
-- [ ] 1. Profile icon has white container background on most tabs — remove the white container so it matches the clean style
-- [ ] 5. Learn tab: recent quiz score card shows multiple records — change to show only the single latest record
+- [ ] 9. Quiz exit button — add X/close button to QuizScreen so users can exit mid-quiz. Show confirmation dialog ("Are you sure? Progress will be lost") before navigating back
+- [ ] 12. YouTube player not full height — video frame in StudyScreen is not tall enough (width is fine). Fix YouTubePlayer component to use proper 16:9 aspect ratio height based on screen width
+- [ ] 13. Talk tab conversation header too close to status bar — add safe area top padding to TalkConversation header. Also remove the redundant "End" button (voice controls handle the flow)
 
-### Features
-- [ ] 2. Implement recommended videos on Search tab based on user's search/research history
-- [ ] 4. Learn tab: add total learning unit count at the top of the page
-- [ ] 6. Days streak feature — mark daily streak as completed when user completes a unit or finishes a talk session (needs thoughtful design: streak tracking, visual display, reset logic)
-- [ ] 7. Experience & level system — new users start at level 0, earn XP from unit completion (score-based) and talk sessions. Each level requires progressively more XP (needs thoughtful design: XP formula, level thresholds, UI display, persistence)
+### UX Improvements
+- [ ] 10. Merge URL input + search into single field — auto-detect if input is a YouTube URL (youtube.com, youtu.be) or a search term. One input field instead of two separate ones
 
 ### Bug Fixes
-- [ ] 3. Auto learning unit generation not working — after loading a new YouTube video, new learning units are not generated and added to the Learn tab. Debug the generation trigger and polling flow
-- [ ] 8. Script generation language detection — system doesn't properly detect video language. Review the script/transcript generation to ensure the generated script matches the video's actual language regardless of whether a transcript file exists
+- [ ] 11. Script still generated in wrong language — generated script appears in Arabic/other language instead of video's actual language. The targetLanguage fix (item 8) may not be reaching all edge functions. Verify language is passed to extract-transcript and analyze-content consistently
+
+## Completed — Batch 1 (Session 7-8)
+- [x] 1. Profile icon white container — switched to custom JS header, bypasses iOS 26 UIBarButtonItem styling
+- [x] 2. Recommended videos — useRecommendedVideos hook, personalized based on search history
+- [x] 3. Auto unit generation bug — project coverage check now queries ALL learning_units
+- [x] 4. Total unit/project count — Learn tab shows counts from DB, not just loaded page
+- [x] 5. Single latest quiz score — compact single-row card
+- [x] 6. Days streak — useStreak hook, AsyncStorage, triggered by quiz + talk completion
+- [x] 7. XP & level system — useExperience hook, progressive formula, universal StatsHeader
+- [x] 8. Language detection — passes targetLanguage to analyze-content edge function
 
 ## Completed (Session 7)
 - [x] Voice-first Talk tab redesign (auto-listen, floating mic, split into 4 views)
@@ -23,8 +30,10 @@
 - [x] Paginated Learn tab (lazy-load questions, non-blocking generation)
 - [x] Quiz content sanitization (strip 肢, 操 artifacts)
 - [x] WordArrangeQ stable word pool (gray out instead of remove)
-- [x] Profile icon fix (hitSlop, smaller icon)
 - [x] Pricing strategy document
+- [x] Custom JS header (fixes iOS 26 UIBarButtonItem circle)
+- [x] SafeAreaView edges fix (removed bottom gap across all tabs)
+- [x] Quiz full-screen push (removed modal presentation)
 
 ## Completed (Earlier Sessions)
 - [x] Talk tab edge function error: Fixed payload format
