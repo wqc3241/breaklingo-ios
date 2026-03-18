@@ -1,6 +1,11 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { renderHook, act } from '@testing-library/react-native';
+import React from 'react';
 import { useExperience, xpForLevel, computeLevel, computeProgress } from '../../src/hooks/useExperience';
+import { StatsProvider } from '../../src/context/StatsContext';
+
+const wrapper = ({ children }: { children: React.ReactNode }) =>
+  React.createElement(StatsProvider, null, children);
 
 describe('XP utility functions', () => {
   it('xpForLevel returns correct thresholds', () => {
@@ -45,7 +50,7 @@ describe('useExperience', () => {
   });
 
   it('starts at level 0 with 0 XP', async () => {
-    const { result } = renderHook(() => useExperience());
+    const { result } = renderHook(() => useExperience(), { wrapper });
     await act(async () => {});
 
     expect(result.current.totalXP).toBe(0);
@@ -54,7 +59,7 @@ describe('useExperience', () => {
   });
 
   it('adds XP and updates level', async () => {
-    const { result } = renderHook(() => useExperience());
+    const { result } = renderHook(() => useExperience(), { wrapper });
     await act(async () => {});
 
     await act(async () => {
@@ -66,7 +71,7 @@ describe('useExperience', () => {
   });
 
   it('accumulates XP across multiple calls', async () => {
-    const { result } = renderHook(() => useExperience());
+    const { result } = renderHook(() => useExperience(), { wrapper });
     await act(async () => {});
 
     await act(async () => {
@@ -81,7 +86,7 @@ describe('useExperience', () => {
   });
 
   it('levels up correctly through multiple levels', async () => {
-    const { result } = renderHook(() => useExperience());
+    const { result } = renderHook(() => useExperience(), { wrapper });
     await act(async () => {});
 
     // Add 600 XP total => level 3
@@ -95,7 +100,7 @@ describe('useExperience', () => {
   });
 
   it('persists XP data in AsyncStorage', async () => {
-    const { result } = renderHook(() => useExperience());
+    const { result } = renderHook(() => useExperience(), { wrapper });
     await act(async () => {});
 
     await act(async () => {
@@ -103,7 +108,7 @@ describe('useExperience', () => {
     });
 
     // Re-mount hook
-    const { result: result2 } = renderHook(() => useExperience());
+    const { result: result2 } = renderHook(() => useExperience(), { wrapper });
     await act(async () => {});
 
     expect(result2.current.totalXP).toBe(250);
@@ -111,7 +116,7 @@ describe('useExperience', () => {
   });
 
   it('returns correct xpInLevel and xpNeeded', async () => {
-    const { result } = renderHook(() => useExperience());
+    const { result } = renderHook(() => useExperience(), { wrapper });
     await act(async () => {});
 
     await act(async () => {

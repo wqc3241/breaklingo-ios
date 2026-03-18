@@ -30,17 +30,46 @@ jest.mock('../../src/hooks/useConversation', () => ({
     handleVoiceInput: jest.fn(),
     stopConversation: jest.fn(),
     resetConversation: mockResetConversation,
+    setAutoListen: jest.fn(),
+    isSpeechActive: false,
+  }),
+}));
+
+jest.mock('../../src/hooks/useStreak', () => ({
+  useStreak: () => ({
+    currentStreak: 0,
+    longestStreak: 0,
+    lastActiveDate: '',
+    markDayComplete: jest.fn(() => Promise.resolve()),
+  }),
+}));
+
+jest.mock('../../src/hooks/useExperience', () => ({
+  useExperience: () => ({
+    totalXP: 0,
+    level: 0,
+    progress: 0,
+    xpInLevel: 0,
+    xpNeeded: 100,
+    addXP: jest.fn(() => Promise.resolve({ totalXP: 0, level: 0 })),
   }),
 }));
 
 let mockProjects: any[] = [];
+const mockFetchProjects = jest.fn(() => Promise.resolve());
+const mockFetchMore = jest.fn();
 
-jest.mock('../../src/context/ProjectContext', () => ({
-  useProjectContext: () => ({
-    currentProject: null,
-    setCurrentProject: jest.fn(),
+jest.mock('../../src/hooks/useProjectList', () => ({
+  useProjectList: () => ({
     projects: mockProjects,
-    fetchProjects: jest.fn(() => Promise.resolve(mockProjects)),
+    isLoading: false,
+    isLoadingMore: false,
+    hasMore: false,
+    fetchProjects: mockFetchProjects,
+    fetchMore: mockFetchMore,
+    refresh: mockFetchProjects,
+    updateProjectLocally: jest.fn(),
+    removeProjectLocally: jest.fn(),
   }),
 }));
 

@@ -61,6 +61,7 @@ jest.mock('@react-navigation/native', () => ({
     navigate: mockNavigate,
     goBack: mockGoBack,
     dispatch: jest.fn(),
+    addListener: jest.fn(() => jest.fn()),
   }),
   useRoute: () => ({
     params: {
@@ -99,6 +100,7 @@ jest.mock('../../src/hooks/useQuizData', () => ({
 jest.mock('../../src/hooks/useTextToSpeech', () => ({
   useTextToSpeech: () => ({
     speak: mockSpeak,
+    stop: jest.fn(),
     isPlaying: false,
   }),
 }));
@@ -135,6 +137,7 @@ jest.mock('../../src/hooks/useWhisperSTT', () => ({
     isListening: false,
     isTranscribing: false,
     finalTranscript: '',
+    setOnSilenceCallback: jest.fn(),
   }),
 }));
 
@@ -772,11 +775,14 @@ describe('7. AI Voice Conversation Flow', () => {
       .mockResolvedValueOnce({ data: { message: 'Hello!' }, error: null }) // greeting
       .mockResolvedValueOnce({
         data: {
-          score: 80,
-          sentencesReviewed: [],
-          vocabularyFeedback: ['Good vocab usage'],
-          grammarFeedback: [],
-          overallFeedback: 'Well done!',
+          summary: {
+            overallScore: 80,
+            overallComment: 'Good vocab usage',
+            sentencesUsed: [],
+            vocabularyUsed: [],
+            grammarPatterns: [],
+            feedback: [],
+          },
         },
         error: null,
       }); // summary
@@ -822,7 +828,7 @@ describe('7. AI Voice Conversation Flow', () => {
     mockSupabaseFunctionsInvoke
       .mockResolvedValueOnce({ data: { message: 'Hi!' }, error: null })
       .mockResolvedValueOnce({
-        data: { score: 90, overallFeedback: 'Great!', sentencesReviewed: [], vocabularyFeedback: [], grammarFeedback: [] },
+        data: { summary: { overallScore: 90, overallComment: 'Great!', sentencesUsed: [], vocabularyUsed: [], grammarPatterns: [], feedback: [] } },
         error: null,
       });
 
@@ -943,7 +949,7 @@ describe('9. Edge Cases', () => {
       .mockResolvedValueOnce({ data: { message: 'Greeting' }, error: null })
       .mockResolvedValueOnce({ data: { message: 'Reply 1' }, error: null })
       .mockResolvedValueOnce({
-        data: { score: 50, overallFeedback: 'ok', sentencesReviewed: [], vocabularyFeedback: [], grammarFeedback: [] },
+        data: { summary: { overallScore: 50, overallComment: 'ok', sentencesUsed: [], vocabularyUsed: [], grammarPatterns: [], feedback: [] } },
         error: null,
       });
 
@@ -976,7 +982,7 @@ describe('9. Edge Cases', () => {
     mockSupabaseFunctionsInvoke
       .mockResolvedValueOnce({ data: { message: 'Hi!' }, error: null })
       .mockResolvedValueOnce({
-        data: { score: 80, overallFeedback: 'Good', sentencesReviewed: [], vocabularyFeedback: [], grammarFeedback: [] },
+        data: { summary: { overallScore: 80, overallComment: 'Good', sentencesUsed: [], vocabularyUsed: [], grammarPatterns: [], feedback: [] } },
         error: null,
       });
 

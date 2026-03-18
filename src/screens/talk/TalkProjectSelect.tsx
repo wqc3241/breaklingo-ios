@@ -5,7 +5,6 @@ import {
   StyleSheet,
   TouchableOpacity,
   FlatList,
-  TextInput,
   ActivityIndicator,
   RefreshControl,
 } from 'react-native';
@@ -19,6 +18,7 @@ import {
   ChevronRight,
 } from 'lucide-react-native';
 import { colors } from '../../lib/theme';
+import SearchBar from '../../components/common/SearchBar';
 import type { AppProject, ConversationSession } from '../../lib/types';
 import { formatRelativeDate } from '../../lib/dateUtils';
 
@@ -26,10 +26,12 @@ interface TalkProjectSelectProps {
   projects: AppProject[];
   pastSessions: ConversationSession[];
   isLoading: boolean;
+  isLoadingMore?: boolean;
   isRefreshing: boolean;
   searchQuery: string;
   onSearchChange: (query: string) => void;
   onRefresh: () => void;
+  onFetchMore?: () => void;
   onProjectSelect: (project: AppProject) => void;
   onShowHistory: () => void;
 }
@@ -38,19 +40,15 @@ const TalkProjectSelect: React.FC<TalkProjectSelectProps> = ({
   projects,
   pastSessions,
   isLoading,
+  isLoadingMore,
   isRefreshing,
   searchQuery,
   onSearchChange,
   onRefresh,
+  onFetchMore,
   onProjectSelect,
   onShowHistory,
 }) => {
-  const filteredProjects = projects.filter(
-    (p) =>
-      !searchQuery ||
-      p.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      (p.detectedLanguage || '').toLowerCase().includes(searchQuery.toLowerCase())
-  );
 
   return (
     <SafeAreaView style={styles.container} edges={[]}>
@@ -65,8 +63,8 @@ const TalkProjectSelect: React.FC<TalkProjectSelectProps> = ({
 
       {pastSessions.length > 0 && !searchQuery && (
         <View style={styles.recentSection}>
-          <Text style={styles.recentSectionTitle}>Recent Conversations</Text>
-          {pastSessions.slice(0, 3).map((session) => (
+          <Text style={styles.recentSectionTitle}>Recent Conversation</Text>
+          {pastSessions.slice(0, 1).map((session) => (
             <TouchableOpacity
               key={session.id}
               style={styles.recentSessionCard}
@@ -91,7 +89,7 @@ const TalkProjectSelect: React.FC<TalkProjectSelectProps> = ({
                   {session.summary && (
                     <>
                       <Text style={styles.metaDot}>{'\u00B7'}</Text>
-                      <Text style={styles.scoreText}>{session.summary.score}%</Text>
+                      <Text style={styles.scoreText}>{session.summary.overallScore}/10</Text>
                     </>
                   )}
                 </View>
@@ -102,21 +100,17 @@ const TalkProjectSelect: React.FC<TalkProjectSelectProps> = ({
         </View>
       )}
 
-      <View style={styles.searchContainer}>
-        <TextInput
-          style={styles.searchInput}
-          placeholder="Search projects..."
-          value={searchQuery}
-          onChangeText={onSearchChange}
-          placeholderTextColor={colors.muted}
-        />
-      </View>
+      <SearchBar
+        value={searchQuery}
+        onChangeText={onSearchChange}
+        placeholder="Search projects..."
+      />
 
-      {isLoading ? (
+      {isLoading && projects.length === 0 ? (
         <View style={styles.loadingState}>
           <ActivityIndicator size="large" color={colors.primary} />
         </View>
-      ) : filteredProjects.length === 0 ? (
+      ) : projects.length === 0 ? (
         <View style={styles.emptyState}>
           <View style={styles.emptyIconContainer}>
             <MessageCircle size={48} color={colors.muted} />
@@ -132,7 +126,7 @@ const TalkProjectSelect: React.FC<TalkProjectSelectProps> = ({
         </View>
       ) : (
         <FlatList
-          data={filteredProjects}
+          data={projects}
           keyExtractor={(item) => String(item.id)}
           renderItem={({ item }) => (
             <TouchableOpacity
@@ -171,6 +165,17 @@ const TalkProjectSelect: React.FC<TalkProjectSelectProps> = ({
           contentContainerStyle={styles.listContent}
           refreshControl={
             <RefreshControl refreshing={isRefreshing} onRefresh={onRefresh} />
+          }
+          onEndReached={onFetchMore}
+          onEndReachedThreshold={0.5}
+          ListFooterComponent={
+            isLoadingMore ? (
+              <ActivityIndicator
+                size="small"
+                color={colors.primary}
+                style={styles.footerLoader}
+              />
+            ) : null
           }
         />
       )}
@@ -266,6 +271,9 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     fontSize: 16,
     color: colors.foreground,
+  },
+  footerLoader: {
+    paddingVertical: 16,
   },
   loadingState: {
     flex: 1,

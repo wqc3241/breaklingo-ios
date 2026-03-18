@@ -21,6 +21,7 @@ jest.mock('../../src/hooks/useWhisperSTT', () => ({
     startListening: jest.fn(() => Promise.resolve()),
     stopListening: jest.fn(() => Promise.resolve('hello')),
     cancelListening: jest.fn(() => Promise.resolve()),
+    setOnSilenceCallback: jest.fn(),
   }),
 }));
 

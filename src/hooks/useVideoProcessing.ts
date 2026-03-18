@@ -74,7 +74,21 @@ export const useVideoProcessing = () => {
       body,
     });
 
-    if (error) throw new Error('AI analysis failed. Please try again.');
+    if (error) {
+      console.error('analyze-content error:', error);
+      throw new Error('AI analysis failed. Please try again.');
+    }
+
+    // Edge function may return an error in the data body
+    if (data?.error) {
+      console.error('analyze-content returned error:', data.error);
+      throw new Error(typeof data.error === 'string' ? data.error : 'AI analysis returned an error. Please try again.');
+    }
+
+    if (!data?.vocabulary || !data?.grammar) {
+      console.error('analyze-content returned incomplete data:', JSON.stringify(data).slice(0, 200));
+      throw new Error('AI analysis returned incomplete results. Please try again.');
+    }
 
     return {
       vocabulary: (data.vocabulary || []) as VocabularyItem[],
@@ -89,8 +103,10 @@ export const useVideoProcessing = () => {
     detectedLanguage: string
   ): Promise<PracticeSentence[]> => {
     try {
+      // Scale practice sentence count based on vocabulary size
+      const sentenceCount = vocabulary.length >= 20 ? 15 : 10;
       const { data, error } = await supabase.functions.invoke('generate-practice-sentences', {
-        body: { vocabulary, grammar, detectedLanguage, count: 10 },
+        body: { vocabulary, grammar, detectedLanguage, count: sentenceCount },
       });
 
       if (error) {

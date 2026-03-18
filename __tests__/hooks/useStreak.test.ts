@@ -1,19 +1,11 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { renderHook, act } from '@testing-library/react-native';
-import { useStreak } from '../../src/hooks/useStreak';
+import React from 'react';
+import { useStreak, STREAK_KEY, loadStreakData, saveStreakData, refreshStreak, getToday, getYesterday } from '../../src/hooks/useStreak';
+import { StatsProvider } from '../../src/context/StatsContext';
 
-const STREAK_KEY = 'breaklingo-streak-data';
-
-const getToday = (): string => {
-  const d = new Date();
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-};
-
-const getYesterday = (): string => {
-  const d = new Date();
-  d.setDate(d.getDate() - 1);
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-};
+const wrapper = ({ children }: { children: React.ReactNode }) =>
+  React.createElement(StatsProvider, null, children);
 
 describe('useStreak', () => {
   beforeEach(async () => {
@@ -22,7 +14,7 @@ describe('useStreak', () => {
   });
 
   it('starts with zero streak when no data stored', async () => {
-    const { result } = renderHook(() => useStreak());
+    const { result } = renderHook(() => useStreak(), { wrapper });
     await act(async () => {});
 
     expect(result.current.currentStreak).toBe(0);
@@ -30,7 +22,7 @@ describe('useStreak', () => {
   });
 
   it('marks first day complete and sets streak to 1', async () => {
-    const { result } = renderHook(() => useStreak());
+    const { result } = renderHook(() => useStreak(), { wrapper });
     await act(async () => {});
 
     await act(async () => {
@@ -43,7 +35,7 @@ describe('useStreak', () => {
   });
 
   it('does not double-count same day', async () => {
-    const { result } = renderHook(() => useStreak());
+    const { result } = renderHook(() => useStreak(), { wrapper });
     await act(async () => {});
 
     await act(async () => {
@@ -64,7 +56,7 @@ describe('useStreak', () => {
       longestStreak: 5,
     }));
 
-    const { result } = renderHook(() => useStreak());
+    const { result } = renderHook(() => useStreak(), { wrapper });
     await act(async () => {});
 
     await act(async () => {
@@ -82,7 +74,7 @@ describe('useStreak', () => {
       longestStreak: 15,
     }));
 
-    const { result } = renderHook(() => useStreak());
+    const { result } = renderHook(() => useStreak(), { wrapper });
     await act(async () => {});
 
     // Streak should be reset to 0 on load (broken streak)
@@ -104,7 +96,7 @@ describe('useStreak', () => {
       longestStreak: 5,
     }));
 
-    const { result } = renderHook(() => useStreak());
+    const { result } = renderHook(() => useStreak(), { wrapper });
     await act(async () => {});
 
     await act(async () => {
@@ -113,5 +105,26 @@ describe('useStreak', () => {
 
     expect(result.current.currentStreak).toBe(6);
     expect(result.current.longestStreak).toBe(6);
+  });
+});
+
+describe('streak utility functions', () => {
+  it('refreshStreak resets when lastActiveDate is old', () => {
+    const data = { currentStreak: 5, lastActiveDate: '2020-01-01', longestStreak: 10 };
+    const refreshed = refreshStreak(data);
+    expect(refreshed.currentStreak).toBe(0);
+    expect(refreshed.longestStreak).toBe(10);
+  });
+
+  it('refreshStreak preserves streak when lastActiveDate is today', () => {
+    const data = { currentStreak: 5, lastActiveDate: getToday(), longestStreak: 10 };
+    const refreshed = refreshStreak(data);
+    expect(refreshed.currentStreak).toBe(5);
+  });
+
+  it('refreshStreak preserves streak when lastActiveDate is yesterday', () => {
+    const data = { currentStreak: 5, lastActiveDate: getYesterday(), longestStreak: 10 };
+    const refreshed = refreshStreak(data);
+    expect(refreshed.currentStreak).toBe(5);
   });
 });

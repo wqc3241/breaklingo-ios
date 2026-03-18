@@ -9,8 +9,11 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import {
   ArrowLeft,
+  ChevronDown,
+  ChevronUp,
   Clock,
   Languages,
+  MessageSquare,
 } from 'lucide-react-native';
 import { colors } from '../../lib/theme';
 import type { ConversationSession } from '../../lib/types';
@@ -71,12 +74,79 @@ const TalkHistory: React.FC<TalkHistoryProps> = ({
                   {new Date(item.createdAt).toLocaleDateString()}
                 </Text>
                 {item.summary && (
-                  <Text style={styles.scoreText}>Score: {item.summary.score}%</Text>
+                  <Text style={styles.scoreText}>Score: {item.summary.overallScore}/10</Text>
                 )}
               </View>
-              {expandedSession === item.id && item.summary && (
+              <View style={styles.expandIndicator}>
+                {expandedSession === item.id ? (
+                  <ChevronUp size={16} color={colors.muted} />
+                ) : (
+                  <ChevronDown size={16} color={colors.muted} />
+                )}
+              </View>
+              {expandedSession === item.id && (
                 <View style={styles.expandedSummary}>
-                  <Text style={styles.summaryText}>{item.summary.overallFeedback}</Text>
+                  {item.summary ? (
+                    <>
+                      <View style={styles.scoreRow}>
+                        <Text style={styles.scoreLarge}>{item.summary.overallScore}/10</Text>
+                        <Text style={styles.scoreLabel}>Score</Text>
+                      </View>
+
+                      {item.summary.overallComment ? (
+                        <Text style={styles.summaryText}>{item.summary.overallComment}</Text>
+                      ) : null}
+
+                      {Array.isArray(item.summary.feedback) && item.summary.feedback.length > 0 && (
+                        <View style={styles.feedbackSection}>
+                          <Text style={styles.feedbackLabel}>Feedback</Text>
+                          {item.summary.feedback.map((fb: any, i: number) => (
+                            <Text key={i} style={styles.feedbackItem}>
+                              {'\u2022'} {typeof fb === 'string' ? fb : fb.comment || fb.feedback || String(fb)}
+                            </Text>
+                          ))}
+                        </View>
+                      )}
+
+                      {Array.isArray(item.summary.vocabularyUsed) && item.summary.vocabularyUsed.length > 0 && (
+                        <View style={styles.feedbackSection}>
+                          <Text style={styles.feedbackLabel}>Vocabulary Used</Text>
+                          {item.summary.vocabularyUsed.map((v: any, i: number) => (
+                            <Text key={i} style={styles.feedbackItem}>
+                              {'\u2022'} {typeof v === 'string' ? v : v.word || String(v)}
+                            </Text>
+                          ))}
+                        </View>
+                      )}
+
+                      {Array.isArray(item.summary.grammarPatterns) && item.summary.grammarPatterns.length > 0 && (
+                        <View style={styles.feedbackSection}>
+                          <Text style={styles.feedbackLabel}>Grammar Patterns</Text>
+                          {item.summary.grammarPatterns.map((g: any, i: number) => (
+                            <Text key={i} style={styles.feedbackItem}>
+                              {'\u2022'} {typeof g === 'string' ? g : g.pattern || String(g)}
+                            </Text>
+                          ))}
+                        </View>
+                      )}
+
+                      <Text style={styles.messageCount}>
+                        {item.messages.length} messages
+                      </Text>
+                    </>
+                  ) : (
+                    <View style={styles.noSummaryContainer}>
+                      <MessageSquare size={20} color={colors.muted} />
+                      <Text style={styles.noSummaryText}>
+                        No summary available — complete the conversation to see feedback
+                      </Text>
+                      {item.messages.length > 0 && (
+                        <Text style={styles.messageCount}>
+                          {item.messages.length} messages exchanged
+                        </Text>
+                      )}
+                    </View>
+                  )}
                 </View>
               )}
             </TouchableOpacity>
@@ -165,15 +235,89 @@ const styles = StyleSheet.create({
     color: colors.primary,
     fontWeight: '500',
   },
+  expandIndicator: {
+    alignItems: 'center',
+    marginTop: 8,
+  },
   expandedSummary: {
     marginTop: 10,
-    paddingTop: 10,
+    paddingTop: 12,
     borderTopWidth: 1,
     borderTopColor: colors.border,
+  },
+  scoreRow: {
+    flexDirection: 'row',
+    alignItems: 'baseline',
+    gap: 6,
+    marginBottom: 10,
+  },
+  scoreLarge: {
+    fontSize: 24,
+    fontWeight: '700',
+    color: colors.primary,
+  },
+  scoreLabel: {
+    fontSize: 13,
+    color: colors.muted,
+    fontWeight: '500',
   },
   summaryText: {
     fontSize: 14,
     color: colors.secondary,
+    lineHeight: 20,
+    marginBottom: 12,
+  },
+  feedbackSection: {
+    marginBottom: 12,
+  },
+  feedbackLabel: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: colors.muted,
+    marginBottom: 4,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+  feedbackItem: {
+    fontSize: 14,
+    color: colors.secondary,
+    lineHeight: 22,
+    paddingLeft: 4,
+  },
+  sentenceReview: {
+    marginBottom: 8,
+    paddingLeft: 4,
+  },
+  sentenceOriginal: {
+    fontSize: 14,
+    color: colors.foreground,
+    fontWeight: '500',
+  },
+  sentenceCorrected: {
+    fontSize: 14,
+    color: colors.primary,
+    fontStyle: 'italic',
+    marginTop: 2,
+  },
+  sentenceFeedback: {
+    fontSize: 13,
+    color: colors.muted,
+    marginTop: 2,
+  },
+  messageCount: {
+    fontSize: 12,
+    color: colors.muted,
+    marginTop: 4,
+  },
+  noSummaryContainer: {
+    alignItems: 'center',
+    gap: 8,
+    paddingVertical: 8,
+  },
+  noSummaryText: {
+    fontSize: 14,
+    color: colors.muted,
+    textAlign: 'center',
     lineHeight: 20,
   },
   emptyState: {

@@ -1,14 +1,13 @@
-import { useState, useEffect, useCallback } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
-const XP_KEY = 'breaklingo-experience-data';
+export const XP_KEY = 'breaklingo-experience-data';
 
 export interface ExperienceData {
   totalXP: number;
   level: number;
 }
 
-const DEFAULT_XP: ExperienceData = {
+export const DEFAULT_XP: ExperienceData = {
   totalXP: 0,
   level: 0,
 };
@@ -56,7 +55,7 @@ export const getLevelXPInfo = (totalXP: number, level: number) => {
   };
 };
 
-const loadXPData = async (): Promise<ExperienceData> => {
+export const loadXPData = async (): Promise<ExperienceData> => {
   try {
     const stored = await AsyncStorage.getItem(XP_KEY);
     return stored ? JSON.parse(stored) : DEFAULT_XP;
@@ -65,7 +64,7 @@ const loadXPData = async (): Promise<ExperienceData> => {
   }
 };
 
-const saveXPData = async (data: ExperienceData): Promise<void> => {
+export const saveXPData = async (data: ExperienceData): Promise<void> => {
   try {
     await AsyncStorage.setItem(XP_KEY, JSON.stringify(data));
   } catch (error) {
@@ -73,37 +72,20 @@ const saveXPData = async (data: ExperienceData): Promise<void> => {
   }
 };
 
+/**
+ * Hook that delegates to StatsContext for shared XP state.
+ * This hook is a convenience wrapper.
+ */
 export const useExperience = () => {
-  const [xpData, setXPData] = useState<ExperienceData>(DEFAULT_XP);
-
-  useEffect(() => {
-    loadXPData().then(setXPData);
-  }, []);
-
-  const addXP = useCallback(async (amount: number) => {
-    const current = await loadXPData();
-    const newTotal = current.totalXP + amount;
-    const newLevel = computeLevel(newTotal);
-
-    const updated: ExperienceData = {
-      totalXP: newTotal,
-      level: newLevel,
-    };
-
-    await saveXPData(updated);
-    setXPData(updated);
-    return updated;
-  }, []);
-
-  const progress = computeProgress(xpData.totalXP, xpData.level);
-  const levelInfo = getLevelXPInfo(xpData.totalXP, xpData.level);
-
+  // Lazy import to avoid circular dependency
+  const { useStatsContext } = require('../context/StatsContext');
+  const stats = useStatsContext();
   return {
-    totalXP: xpData.totalXP,
-    level: xpData.level,
-    progress,
-    xpInLevel: levelInfo.xpInLevel,
-    xpNeeded: levelInfo.xpNeeded,
-    addXP,
+    totalXP: stats.totalXP,
+    level: stats.level,
+    progress: stats.progress,
+    xpInLevel: stats.xpInLevel,
+    xpNeeded: stats.xpNeeded,
+    addXP: stats.addXP,
   };
 };

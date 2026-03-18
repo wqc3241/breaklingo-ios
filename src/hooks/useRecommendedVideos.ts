@@ -34,14 +34,17 @@ export const useRecommendedVideos = (searchHistory: string[]) => {
           if (error) throw error;
 
           if (data?.results && Array.isArray(data.results)) {
-            return data.results.map((r: any) => ({
-              videoId: r.videoId || r.id?.videoId || '',
-              title: r.title || '',
-              channelTitle: r.channelTitle || '',
-              publishedAt: r.publishedAt || '',
-              thumbnailUrl: r.thumbnailUrl || r.thumbnail || '',
-              description: r.description || '',
-            })) as YouTubeSearchResult[];
+            return data.results.map((r: any) => {
+              const videoId = r.videoId || r.id?.videoId || '';
+              return {
+                videoId,
+                title: r.title || '',
+                channelTitle: r.channelTitle || '',
+                publishedAt: r.publishedAt || '',
+                thumbnailUrl: r.thumbnailUrl || r.thumbnail || (videoId ? `https://img.youtube.com/vi/${videoId}/hqdefault.jpg` : ''),
+                description: r.description || '',
+              };
+            }) as YouTubeSearchResult[];
           }
           return [];
         } catch {

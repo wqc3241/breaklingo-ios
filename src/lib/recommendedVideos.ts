@@ -8,7 +8,7 @@ export const CURATED_VIDEOS: CuratedVideo[] = [
     channelTitle: 'JapanesePod101',
     language: 'Japanese',
     level: 'beginner',
-    thumbnailUrl: 'https://img.youtube.com/vi/pdBQ1uEijMg/mqdefault.jpg',
+    thumbnailUrl: 'https://img.youtube.com/vi/pdBQ1uEijMg/hqdefault.jpg',
   },
   {
     videoId: '6p9Il_j0zjc',
@@ -16,7 +16,7 @@ export const CURATED_VIDEOS: CuratedVideo[] = [
     channelTitle: 'Japanese Ammo with Misa',
     language: 'Japanese',
     level: 'beginner',
-    thumbnailUrl: 'https://img.youtube.com/vi/6p9Il_j0zjc/mqdefault.jpg',
+    thumbnailUrl: 'https://img.youtube.com/vi/6p9Il_j0zjc/hqdefault.jpg',
   },
   // Chinese
   {
@@ -25,7 +25,7 @@ export const CURATED_VIDEOS: CuratedVideo[] = [
     channelTitle: 'ChinesePod101',
     language: 'Chinese',
     level: 'beginner',
-    thumbnailUrl: 'https://img.youtube.com/vi/RCKBXhbr-ZY/mqdefault.jpg',
+    thumbnailUrl: 'https://img.youtube.com/vi/RCKBXhbr-ZY/hqdefault.jpg',
   },
   {
     videoId: 'j7Bfep3E5hk',
@@ -33,7 +33,7 @@ export const CURATED_VIDEOS: CuratedVideo[] = [
     channelTitle: 'Mandarin Corner',
     language: 'Chinese',
     level: 'beginner',
-    thumbnailUrl: 'https://img.youtube.com/vi/j7Bfep3E5hk/mqdefault.jpg',
+    thumbnailUrl: 'https://img.youtube.com/vi/j7Bfep3E5hk/hqdefault.jpg',
   },
   // Korean
   {
@@ -42,7 +42,7 @@ export const CURATED_VIDEOS: CuratedVideo[] = [
     channelTitle: 'KoreanClass101',
     language: 'Korean',
     level: 'beginner',
-    thumbnailUrl: 'https://img.youtube.com/vi/gRHvIB42myo/mqdefault.jpg',
+    thumbnailUrl: 'https://img.youtube.com/vi/gRHvIB42myo/hqdefault.jpg',
   },
   {
     videoId: '3FMD0yCZdtQ',
@@ -50,7 +50,7 @@ export const CURATED_VIDEOS: CuratedVideo[] = [
     channelTitle: 'Talk To Me In Korean',
     language: 'Korean',
     level: 'intermediate',
-    thumbnailUrl: 'https://img.youtube.com/vi/3FMD0yCZdtQ/mqdefault.jpg',
+    thumbnailUrl: 'https://img.youtube.com/vi/3FMD0yCZdtQ/hqdefault.jpg',
   },
   // Spanish
   {
@@ -59,7 +59,7 @@ export const CURATED_VIDEOS: CuratedVideo[] = [
     channelTitle: 'SpanishPod101',
     language: 'Spanish',
     level: 'beginner',
-    thumbnailUrl: 'https://img.youtube.com/vi/DAp_v7EH9AA/mqdefault.jpg',
+    thumbnailUrl: 'https://img.youtube.com/vi/DAp_v7EH9AA/hqdefault.jpg',
   },
   {
     videoId: 'VlB9jui_CtA',
@@ -67,7 +67,7 @@ export const CURATED_VIDEOS: CuratedVideo[] = [
     channelTitle: 'Butterfly Spanish',
     language: 'Spanish',
     level: 'intermediate',
-    thumbnailUrl: 'https://img.youtube.com/vi/VlB9jui_CtA/mqdefault.jpg',
+    thumbnailUrl: 'https://img.youtube.com/vi/VlB9jui_CtA/hqdefault.jpg',
   },
   // French
   {
@@ -76,7 +76,7 @@ export const CURATED_VIDEOS: CuratedVideo[] = [
     channelTitle: 'FrenchPod101',
     language: 'French',
     level: 'beginner',
-    thumbnailUrl: 'https://img.youtube.com/vi/LBSfALnyrWY/mqdefault.jpg',
+    thumbnailUrl: 'https://img.youtube.com/vi/LBSfALnyrWY/hqdefault.jpg',
   },
   {
     videoId: 'lfTaz1JBYx0',
@@ -84,7 +84,7 @@ export const CURATED_VIDEOS: CuratedVideo[] = [
     channelTitle: 'Français Authentique',
     language: 'French',
     level: 'intermediate',
-    thumbnailUrl: 'https://img.youtube.com/vi/lfTaz1JBYx0/mqdefault.jpg',
+    thumbnailUrl: 'https://img.youtube.com/vi/lfTaz1JBYx0/hqdefault.jpg',
   },
   // German
   {
@@ -93,7 +93,7 @@ export const CURATED_VIDEOS: CuratedVideo[] = [
     channelTitle: 'Learn German with Anja',
     language: 'German',
     level: 'beginner',
-    thumbnailUrl: 'https://img.youtube.com/vi/fsvGsYtwMXs/mqdefault.jpg',
+    thumbnailUrl: 'https://img.youtube.com/vi/fsvGsYtwMXs/hqdefault.jpg',
   },
   // Italian
   {
@@ -102,7 +102,7 @@ export const CURATED_VIDEOS: CuratedVideo[] = [
     channelTitle: 'ItalianPod101',
     language: 'Italian',
     level: 'beginner',
-    thumbnailUrl: 'https://img.youtube.com/vi/FJSGIBOEwCA/mqdefault.jpg',
+    thumbnailUrl: 'https://img.youtube.com/vi/FJSGIBOEwCA/hqdefault.jpg',
   },
   // Portuguese
   {
@@ -111,7 +111,7 @@ export const CURATED_VIDEOS: CuratedVideo[] = [
     channelTitle: 'PortuguesePod101',
     language: 'Portuguese',
     level: 'beginner',
-    thumbnailUrl: 'https://img.youtube.com/vi/PfJkAoLPyfc/mqdefault.jpg',
+    thumbnailUrl: 'https://img.youtube.com/vi/PfJkAoLPyfc/hqdefault.jpg',
   },
 ];
 

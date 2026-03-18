@@ -35,15 +35,19 @@ export const useSearchHistory = () => {
     const trimmed = query.trim();
     if (!trimmed) return;
 
-    const filtered = history.filter((item) => item.toLowerCase() !== trimmed.toLowerCase());
+    const stored = await AsyncStorage.getItem(STORAGE_KEY);
+    const current: string[] = stored ? JSON.parse(stored) : [];
+    const filtered = current.filter((item) => item.toLowerCase() !== trimmed.toLowerCase());
     const updated = [trimmed, ...filtered].slice(0, MAX_ENTRIES);
     await saveHistory(updated);
-  }, [history]);
+  }, []);
 
   const removeFromHistory = useCallback(async (query: string) => {
-    const updated = history.filter((item) => item !== query);
+    const stored = await AsyncStorage.getItem(STORAGE_KEY);
+    const current: string[] = stored ? JSON.parse(stored) : [];
+    const updated = current.filter((item) => item !== query);
     await saveHistory(updated);
-  }, [history]);
+  }, []);
 
   const clearHistory = useCallback(async () => {
     await saveHistory([]);

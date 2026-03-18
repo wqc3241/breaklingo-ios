@@ -90,6 +90,10 @@ RCT_EXPORT_METHOD(isPlaying:(RCTPromiseResolveBlock)resolve
 #pragma mark - AVAudioPlayerDelegate
 
 - (void)audioPlayerDidFinishPlaying:(AVAudioPlayer *)player successfully:(BOOL)flag {
+  // Deactivate audio session so recording can properly acquire the audio route
+  [[AVAudioSession sharedInstance] setActive:NO
+                                 withOptions:AVAudioSessionSetActiveOptionNotifyOthersOnDeactivation
+                                       error:nil];
   if (self.playResolve) {
     self.playResolve(@(flag));
     self.playResolve = nil;

@@ -21,6 +21,11 @@ jest.mock('react-native', () => {
     requestPermission: jest.fn(() => Promise.resolve(true)),
     startRecording: jest.fn(() => Promise.resolve(true)),
     stopRecording: jest.fn(() => Promise.resolve('file://test-recording.m4a')),
+    addListener: jest.fn(),
+    removeListeners: jest.fn(),
+  };
+  RN.NativeModules.StoreReviewModule = {
+    requestReview: jest.fn(),
   };
   return RN;
 });
@@ -91,6 +96,8 @@ const mockSupabaseFrom = jest.fn(() => ({
   eq: jest.fn().mockReturnThis(),
   in: jest.fn().mockReturnThis(),
   order: jest.fn().mockReturnThis(),
+  range: jest.fn().mockReturnThis(),
+  ilike: jest.fn().mockReturnThis(),
   maybeSingle: jest.fn(() => Promise.resolve({ data: null, error: null })),
   single: jest.fn(() => Promise.resolve({ data: { is_favorite: false, best_score: 0, attempts: 0 }, error: null })),
   then: jest.fn((cb) => cb({ data: [], error: null })),
@@ -162,6 +169,7 @@ jest.mock('@react-navigation/native', () => {
       navigate: jest.fn(),
       goBack: jest.fn(),
       dispatch: jest.fn(),
+      addListener: jest.fn(() => jest.fn()),
     }),
     useRoute: () => ({
       params: {},
