@@ -95,12 +95,38 @@ export interface ConversationMessage {
   timestamp: number;
 }
 
+export interface SentenceUsed {
+  original: string;
+  corrected: string;
+  isCorrect: boolean;
+  translation?: string;
+}
+
+export interface VocabularyUsed {
+  word: string;
+  usedCorrectly: boolean;
+  context?: string;
+}
+
+export interface GrammarPattern {
+  pattern: string;
+  example?: string;
+  usedCorrectly: boolean;
+}
+
+export interface FeedbackItem {
+  category: string;
+  message: string;
+  severity: 'positive' | 'negative' | 'neutral';
+}
+
 export interface ConversationSummary {
-  score: number;
-  sentencesReviewed: { original: string; corrected: string; feedback: string }[];
-  vocabularyFeedback: string[];
-  grammarFeedback: string[];
-  overallFeedback: string;
+  overallScore: number;
+  overallComment: string;
+  sentencesUsed: SentenceUsed[];
+  vocabularyUsed: VocabularyUsed[];
+  grammarPatterns: GrammarPattern[];
+  feedback: FeedbackItem[];
 }
 
 export interface ConversationSession {
