@@ -79,7 +79,7 @@ const PracticeScreen: React.FC = () => {
 
   if (!currentProject) {
     return (
-      <SafeAreaView style={styles.container} edges={['bottom']}>
+      <SafeAreaView style={styles.container} edges={[]}>
         <EmptyState
           icon={<MessageCircle size={36} color="#E8550C" />}
           title="No practice sentences"
@@ -131,7 +131,7 @@ const PracticeScreen: React.FC = () => {
   };
 
   return (
-    <SafeAreaView style={styles.container} edges={['bottom']}>
+    <SafeAreaView style={styles.container} edges={[]}>
       <View style={styles.header}>
         <Text style={styles.headerTitle}>Practice Sentences</Text>
         <TouchableOpacity

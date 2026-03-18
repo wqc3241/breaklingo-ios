@@ -12,7 +12,7 @@ import {
   Keyboard,
   Dimensions,
 } from 'react-native';
-import { Search, Clock, X, ChevronDown, ChevronRight, Play, BookOpen } from 'lucide-react-native';
+import { Search, Clock, X, ChevronDown, ChevronRight, Play, BookOpen, Sparkles } from 'lucide-react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import { useVideoProcessing } from '../hooks/useVideoProcessing';
@@ -20,6 +20,7 @@ import { useProjectContext } from '../context/ProjectContext';
 import { useAuth } from '../hooks/useAuth';
 import { useYouTubeSearch } from '../hooks/useYouTubeSearch';
 import { useSearchHistory } from '../hooks/useSearchHistory';
+import { useRecommendedVideos } from '../hooks/useRecommendedVideos';
 import { TEST_TRANSCRIPT, TEST_VIDEO_TITLE, TEST_VIDEO_URL } from '../lib/constants';
 import { getRecommendationsByLanguage } from '../lib/recommendedVideos';
 import { getDifficultyColor } from '../lib/theme';
@@ -43,6 +44,7 @@ const InputScreen: React.FC = () => {
   const { currentProject, setCurrentProject, autoSaveProject } = useProjectContext();
   const { results, isSearching, hasSearched, search, clearSearch } = useYouTubeSearch();
   const { history, addToHistory, removeFromHistory, clearHistory } = useSearchHistory();
+  const { recommendations, isLoading: isLoadingRecs, hasHistory } = useRecommendedVideos(history);
 
   useEffect(() => {
     return () => cleanup();
@@ -195,7 +197,7 @@ const InputScreen: React.FC = () => {
   );
 
   return (
-    <SafeAreaView style={styles.container} edges={['bottom']}>
+    <SafeAreaView style={styles.container} edges={[]}>
       <ScrollView
         contentContainerStyle={styles.scrollContent}
         keyboardShouldPersistTaps="handled"
@@ -348,36 +350,61 @@ const InputScreen: React.FC = () => {
 
         {/* Recommended Videos (shown when no search results) */}
         {!hasSearched && (
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Recommended Videos</Text>
-            <ScrollView
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              style={styles.langTabs}
-              contentContainerStyle={styles.langTabsContent}
-            >
-              {recLanguages.map((lang) => (
-                <TouchableOpacity
-                  key={lang}
-                  style={[
-                    styles.langTab,
-                    selectedRecLang === lang && styles.langTabActive,
-                  ]}
-                  onPress={() => setSelectedRecLang(lang)}
-                >
-                  <Text style={[
-                    styles.langTabText,
-                    selectedRecLang === lang && styles.langTabTextActive,
-                  ]}>{lang}</Text>
-                </TouchableOpacity>
-              ))}
-            </ScrollView>
-            <View style={styles.gridContainer}>
-              {(recommendedByLanguage[selectedRecLang] || []).map((item) =>
-                renderCuratedCardGrid(item)
-              )}
+          <>
+            {/* Personalized recommendations based on search history */}
+            {hasHistory && (
+              <View style={styles.section}>
+                <View style={styles.recHeader}>
+                  <Sparkles size={18} color="#E8550C" />
+                  <Text style={[styles.sectionTitle, {marginBottom: 0}]}>Recommended for you</Text>
+                </View>
+                {isLoadingRecs ? (
+                  <View style={styles.recLoading}>
+                    <ActivityIndicator size="small" color="#E8550C" />
+                    <Text style={styles.recLoadingText}>Finding videos for you...</Text>
+                  </View>
+                ) : recommendations.length > 0 ? (
+                  <View style={styles.gridContainer}>
+                    {recommendations.map((item) => renderVideoCardGrid(item))}
+                  </View>
+                ) : null}
+              </View>
+            )}
+
+            {/* Curated / Popular videos */}
+            <View style={styles.section}>
+              <Text style={styles.sectionTitle}>
+                {hasHistory ? 'Popular videos' : 'Recommended Videos'}
+              </Text>
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                style={styles.langTabs}
+                contentContainerStyle={styles.langTabsContent}
+              >
+                {recLanguages.map((lang) => (
+                  <TouchableOpacity
+                    key={lang}
+                    style={[
+                      styles.langTab,
+                      selectedRecLang === lang && styles.langTabActive,
+                    ]}
+                    onPress={() => setSelectedRecLang(lang)}
+                  >
+                    <Text style={[
+                      styles.langTabText,
+                      selectedRecLang === lang && styles.langTabTextActive,
+                    ]}>{lang}</Text>
+                  </TouchableOpacity>
+                ))}
+              </ScrollView>
+              <View style={styles.gridContainer}>
+                {(recommendedByLanguage[selectedRecLang] || []).map((item) =>
+                  renderCuratedCardGrid(item)
+                )}
+              </View>
             </View>
-          </View>
+          </>
         )}
       </ScrollView>
     </SafeAreaView>
@@ -642,6 +669,24 @@ const styles = StyleSheet.create({
   },
   langTabTextActive: {
     color: '#fff',
+  },
+  // Personalized recommendations
+  recHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginBottom: 12,
+  },
+  recLoading: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    paddingVertical: 24,
+  },
+  recLoadingText: {
+    fontSize: 14,
+    color: '#A1A1A1',
   },
   emptyResults: {
     alignItems: 'center',

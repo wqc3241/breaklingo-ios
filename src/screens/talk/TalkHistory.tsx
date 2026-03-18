@@ -31,7 +31,7 @@ const TalkHistory: React.FC<TalkHistoryProps> = ({
   onBack,
 }) => {
   return (
-    <SafeAreaView style={styles.container} edges={['bottom']}>
+    <SafeAreaView style={styles.container} edges={[]}>
       <View style={styles.headerRow}>
         <TouchableOpacity onPress={onBack} style={styles.backButton}>
           <ArrowLeft size={18} color={colors.primary} />

@@ -97,7 +97,7 @@ const StudyScreen: React.FC = () => {
 
   if (!currentProject) {
     return (
-      <SafeAreaView style={styles.container} edges={['bottom']}>
+      <SafeAreaView style={styles.container} edges={[]}>
         <EmptyState
           icon={<BookOpen size={36} color="#E8550C" />}
           title="No lesson yet"
@@ -109,7 +109,7 @@ const StudyScreen: React.FC = () => {
 
   if (currentProject.status === 'pending') {
     return (
-      <SafeAreaView style={styles.container} edges={['bottom']}>
+      <SafeAreaView style={styles.container} edges={[]}>
         <View style={styles.statusCard}>
           <View style={[styles.statusBanner, { backgroundColor: colors.intermediateBg }]}>
             <Clock size={20} color={colors.intermediateText} />
@@ -127,7 +127,7 @@ const StudyScreen: React.FC = () => {
 
   if (currentProject.status === 'failed') {
     return (
-      <SafeAreaView style={styles.container} edges={['bottom']}>
+      <SafeAreaView style={styles.container} edges={[]}>
         <View style={styles.statusCard}>
           <View style={[styles.statusBanner, { backgroundColor: colors.wrongBg }]}>
             <AlertTriangle size={20} color={colors.wrongText} />
@@ -219,7 +219,7 @@ const StudyScreen: React.FC = () => {
   const videoId = currentProject.url ? extractVideoId(currentProject.url) : null;
 
   return (
-    <SafeAreaView style={styles.container} edges={['bottom']}>
+    <SafeAreaView style={styles.container} edges={[]}>
       {/* YouTube Video Player */}
       {videoId && (
         <YouTubePlayerComponent videoId={videoId} onOpenExternal={handleOpenVideo} />

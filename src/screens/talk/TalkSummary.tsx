@@ -17,7 +17,7 @@ interface TalkSummaryProps {
 
 const TalkSummary: React.FC<TalkSummaryProps> = ({ summary, onDone }) => {
   return (
-    <SafeAreaView style={styles.container} edges={['bottom']}>
+    <SafeAreaView style={styles.container} edges={[]}>
       <View style={styles.summaryContainer}>
         <View style={styles.summaryIconContainer}>
           <View style={styles.summaryIconCircle}>

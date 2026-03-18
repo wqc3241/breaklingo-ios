@@ -81,7 +81,7 @@ const TalkConversation: React.FC<TalkConversationProps> = ({
   const micDisabled = state === 'processing' || state === 'speaking' || isTranscribing;
 
   return (
-    <SafeAreaView style={styles.container} edges={['bottom']}>
+    <SafeAreaView style={styles.container} edges={[]}>
       <View style={styles.flex}>
         {/* Conversation header */}
         <View style={styles.conversationHeader}>

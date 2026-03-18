@@ -53,7 +53,7 @@ const TalkProjectSelect: React.FC<TalkProjectSelectProps> = ({
   );
 
   return (
-    <SafeAreaView style={styles.container} edges={['bottom']}>
+    <SafeAreaView style={styles.container} edges={[]}>
       <View style={styles.headerRow}>
         <Text style={styles.headerTitle}>Talk with AI</Text>
         <TouchableOpacity onPress={onShowHistory} style={styles.historyButton}>

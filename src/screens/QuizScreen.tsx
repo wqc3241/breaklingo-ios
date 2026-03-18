@@ -15,6 +15,8 @@ import ErrorBoundary from '../components/common/ErrorBoundary';
 import { useAuth } from '../hooks/useAuth';
 import { useLearningUnits } from '../hooks/useLearningUnits';
 import { useQuizData } from '../hooks/useQuizData';
+import { useStreak } from '../hooks/useStreak';
+import { useExperience } from '../hooks/useExperience';
 import MultipleChoiceQ from '../components/quiz/MultipleChoiceQ';
 import TranslationQ from '../components/quiz/TranslationQ';
 import FillBlankQ from '../components/quiz/FillBlankQ';
@@ -70,6 +72,8 @@ const QuizScreen: React.FC = () => {
   const { updateUnitProgress, fetchUnitQuestions } = useLearningUnits(user?.id);
   const unitTitle = route.params?.unitTitle;
   const { questions: fallbackQuestions, isLoading: fallbackLoading, hasProjects, regenerate } = useQuizData();
+  const { markDayComplete } = useStreak();
+  const { addXP } = useExperience();
 
   const [currentIndex, setCurrentIndex] = useState(0);
   const [score, setScore] = useState(0);
@@ -146,8 +150,12 @@ const QuizScreen: React.FC = () => {
         unitTitle: unitTitle || undefined,
         date: new Date().toISOString(),
       });
+
+      // Award XP based on score percentage (e.g., 85% = 85 XP) and mark streak day
+      await addXP(percentage);
+      await markDayComplete();
     }
-  }, [unitId, unitTitle, score, totalQuestions, updateUnitProgress]);
+  }, [unitId, unitTitle, score, totalQuestions, updateUnitProgress, addXP, markDayComplete]);
 
   useEffect(() => {
     if (isComplete) {

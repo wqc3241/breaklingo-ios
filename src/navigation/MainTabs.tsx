@@ -12,6 +12,7 @@ import QuizScreen from '../screens/QuizScreen';
 import TalkScreen from '../screens/TalkScreen';
 import { useAuth } from '../hooks/useAuth';
 import { FeedbackDialog } from '../components/common/FeedbackDialog';
+import StatsHeader from '../components/common/StatsHeader';
 import { colors } from '../lib/theme';
 
 const ProfileContext = createContext<{ toggle: () => void }>({ toggle: () => {} });
@@ -56,10 +57,16 @@ const ProfileHeaderButton = () => {
   );
 };
 
+// Custom JS header to bypass iOS UIBarButtonItem circular background
+const CustomHeader = () => (
+  <View style={styles.customHeader}>
+    <StatsHeader />
+    <ProfileHeaderButton />
+  </View>
+);
+
 const stackHeaderOptions = {
-  headerStyle: { backgroundColor: colors.background },
-  headerShadowVisible: false,
-  headerRight: () => <ProfileHeaderButton />,
+  header: () => <CustomHeader />,
 };
 
 const InputStackScreen = () => (
@@ -82,7 +89,7 @@ const LearnStackScreen = () => (
     <LearnStack.Screen
       name="Quiz"
       component={QuizScreen}
-      options={{ title: 'Quiz', presentation: 'modal', headerRight: () => null }}
+      options={{ headerShown: false }}
     />
   </LearnStack.Navigator>
 );
@@ -134,7 +141,7 @@ export const MainTabs: React.FC = () => {
               backgroundColor: colors.background,
             },
             headerShadowVisible: false,
-            headerRight: () => <ProfileHeaderButton />,
+            header: () => <CustomHeader />,
           }}
         >
           <Tab.Screen
@@ -252,6 +259,15 @@ const styles = StyleSheet.create({
   root: {
     flex: 1,
   },
+  customHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
+    paddingBottom: 8,
+    paddingTop: 54,
+    backgroundColor: colors.background,
+  },
   overlay: {
     ...StyleSheet.absoluteFillObject,
     backgroundColor: 'transparent',
@@ -282,7 +298,6 @@ const styles = StyleSheet.create({
     color: colors.foreground,
   },
   profileButton: {
-    marginRight: 16,
   },
   profileMenu: {
     position: 'absolute',

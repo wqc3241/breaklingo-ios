@@ -170,7 +170,7 @@ const ProjectsScreen: React.FC = () => {
   };
 
   return (
-    <SafeAreaView style={styles.container} edges={['bottom']}>
+    <SafeAreaView style={styles.container} edges={[]}>
       <View style={styles.searchContainer}>
         <TextInput
           style={styles.searchInput}

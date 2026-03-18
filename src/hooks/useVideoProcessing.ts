@@ -64,9 +64,13 @@ export const useVideoProcessing = () => {
     }
   };
 
-  const analyzeContentWithAI = async (script: string) => {
+  const analyzeContentWithAI = async (script: string, targetLanguage?: string) => {
+    const body: Record<string, any> = { transcript: script };
+    if (targetLanguage) {
+      body.targetLanguage = targetLanguage;
+    }
     const { data, error } = await supabase.functions.invoke('analyze-content', {
-      body: { transcript: script },
+      body,
     });
 
     if (error) throw new Error('AI analysis failed. Please try again.');
@@ -107,7 +111,7 @@ export const useVideoProcessing = () => {
     onComplete: (project: AppProject) => void
   ) => {
     try {
-      const { vocabulary, grammar, detectedLanguage } = await analyzeContentWithAI(transcript);
+      const { vocabulary, grammar, detectedLanguage } = await analyzeContentWithAI(transcript, initialProject.detectedLanguage);
       const practiceSentences = await generatePracticeSentences(vocabulary, grammar, detectedLanguage);
 
       const completedProject: AppProject = {
@@ -232,7 +236,7 @@ export const useVideoProcessing = () => {
       const { transcript, videoTitle } = result as { transcript: string; videoTitle: string };
 
       setProcessingStep('Analyzing content with AI...');
-      const { vocabulary, grammar, detectedLanguage: aiDetectedLang } = await analyzeContentWithAI(transcript);
+      const { vocabulary, grammar, detectedLanguage: aiDetectedLang } = await analyzeContentWithAI(transcript, selectedLanguageName);
 
       const finalLanguage = selectedLanguageName && selectedLanguageName !== 'Other'
         ? selectedLanguageName

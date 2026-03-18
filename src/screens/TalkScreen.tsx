@@ -2,6 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { Alert } from 'react-native';
 import { useProjectContext } from '../context/ProjectContext';
 import { useConversation } from '../hooks/useConversation';
+import { useStreak } from '../hooks/useStreak';
+import { useExperience } from '../hooks/useExperience';
 import { loadSessions, deleteSession } from '../lib/conversationStorage';
 import type { AppProject, ConversationSession } from '../lib/types';
 
@@ -23,6 +25,8 @@ const TalkScreen: React.FC = () => {
   const [expandedSession, setExpandedSession] = useState<string | null>(null);
 
   const { fetchProjects } = useProjectContext();
+  const { markDayComplete } = useStreak();
+  const { addXP } = useExperience();
   const {
     messages,
     state,
@@ -67,6 +71,9 @@ const TalkScreen: React.FC = () => {
 
   const handleStop = async () => {
     await stopConversation();
+    // Award 50 XP for completing a conversation and mark streak day
+    await addXP(50);
+    await markDayComplete();
     setView('summary');
   };
 

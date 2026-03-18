@@ -49,6 +49,14 @@ jest.mock('../../src/hooks/useSearchHistory', () => ({
   }),
 }));
 
+jest.mock('../../src/hooks/useRecommendedVideos', () => ({
+  useRecommendedVideos: () => ({
+    recommendations: [],
+    isLoading: false,
+    hasHistory: false,
+  }),
+}));
+
 describe('InputScreen', () => {
   it('renders search input', () => {
     const { getByPlaceholderText } = render(<InputScreen />);

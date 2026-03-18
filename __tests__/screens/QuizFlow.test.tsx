@@ -46,6 +46,26 @@ jest.mock('../../src/hooks/useTextToSpeech', () => ({
   }),
 }));
 
+jest.mock('../../src/hooks/useStreak', () => ({
+  useStreak: () => ({
+    currentStreak: 0,
+    longestStreak: 0,
+    lastActiveDate: '',
+    markDayComplete: jest.fn(() => Promise.resolve()),
+  }),
+}));
+
+jest.mock('../../src/hooks/useExperience', () => ({
+  useExperience: () => ({
+    totalXP: 0,
+    level: 0,
+    progress: 0,
+    xpInLevel: 0,
+    xpNeeded: 100,
+    addXP: jest.fn(() => Promise.resolve({ totalXP: 0, level: 0 })),
+  }),
+}));
+
 // --- Test Data ---
 
 const allTypeQuestions: QuizQuestion[] = [

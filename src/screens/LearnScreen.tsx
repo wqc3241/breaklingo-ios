@@ -23,12 +23,12 @@ import type { LearningUnit } from '../lib/types';
 const LearnScreen: React.FC = () => {
   const navigation = useNavigation<any>();
   const { user } = useAuth();
-  const { units, isLoading, isGenerating, hasMore, fetchUnits, fetchMoreUnits, cleanup } = useLearningUnits(user?.id);
+  const { units, isLoading, isGenerating, hasMore, totalUnits, totalProjects, fetchUnits, fetchMoreUnits, cleanup } = useLearningUnits(user?.id);
   const [recentScores, setRecentScores] = useState<QuizScoreEntry[]>([]);
 
   useEffect(() => {
     fetchUnits();
-    loadQuizScores().then((scores) => setRecentScores(scores.slice(0, 5)));
+    loadQuizScores().then((scores) => setRecentScores(scores.slice(0, 1)));
     return () => cleanup();
   }, [fetchUnits, cleanup]);
 
@@ -82,7 +82,7 @@ const LearnScreen: React.FC = () => {
 
   if (isLoading && units.length === 0) {
     return (
-      <SafeAreaView style={styles.container} edges={['bottom']}>
+      <SafeAreaView style={styles.container} edges={[]}>
         <LoadingState message="Loading learning path..." />
       </SafeAreaView>
     );
@@ -90,7 +90,7 @@ const LearnScreen: React.FC = () => {
 
   if (isGenerating) {
     return (
-      <SafeAreaView style={styles.container} edges={['bottom']}>
+      <SafeAreaView style={styles.container} edges={[]}>
         <LoadingState message="Generating lessons..." />
       </SafeAreaView>
     );
@@ -98,7 +98,7 @@ const LearnScreen: React.FC = () => {
 
   if (units.length === 0) {
     return (
-      <SafeAreaView style={styles.container} edges={['bottom']}>
+      <SafeAreaView style={styles.container} edges={[]}>
         <EmptyState
           icon={<GraduationCap size={36} color="#E8550C" />}
           title="No lessons yet"
@@ -176,45 +176,50 @@ const LearnScreen: React.FC = () => {
   };
 
   return (
-    <SafeAreaView style={styles.container} edges={['bottom']}>
+    <SafeAreaView style={styles.container} edges={[]}>
       <FlatList
         data={projectGroups}
         keyExtractor={(item) => String(item.projectId)}
-        ListHeaderComponent={recentScores.length > 0 ? (
-          <View style={styles.recentScoresSection}>
-            <View style={styles.recentScoresHeader}>
-              <Trophy size={16} color="#EAB308" />
-              <Text style={styles.recentScoresTitle}>Recent Quiz Scores</Text>
+        ListHeaderComponent={
+          <View>
+            <View style={styles.pathSummary}>
+              <Text style={styles.pathSummaryTitle}>Learning Path</Text>
+              <Text style={styles.pathSummarySubtitle}>
+                {totalUnits || units.length} {totalUnits === 1 ? 'unit' : 'units'} · {totalProjects || projectGroups.length} {totalProjects === 1 ? 'project' : 'projects'}
+              </Text>
             </View>
-            {recentScores.map((entry) => (
-              <View key={entry.id} style={styles.scoreEntry}>
-                <View style={styles.scoreEntryLeft}>
-                  <Text style={styles.scoreEntryTitle} numberOfLines={1}>
-                    {entry.unitTitle || 'Practice Quiz'}
-                  </Text>
-                  <Text style={styles.scoreEntryDate}>{formatRelativeDate(entry.date)}</Text>
-                </View>
-                <View style={styles.scoreEntryRight}>
-                  <View style={styles.scoreEntryStars}>
-                    {Array.from({ length: 3 }).map((_, i) =>
-                      i < entry.stars ? (
-                        <Star key={i} size={10} color="#EAB308" fill="#EAB308" />
-                      ) : (
-                        <Star key={i} size={10} color="#D4D4D4" />
-                      )
-                    )}
+            {recentScores.length > 0 && (() => {
+              const entry = recentScores[0];
+              return (
+                <View style={styles.recentScoresSection}>
+                  <View style={styles.latestScoreRow}>
+                    <Trophy size={14} color="#EAB308" />
+                    <Text style={styles.latestScoreLabel}>Latest:</Text>
+                    <Text style={styles.latestScoreTitle} numberOfLines={1}>
+                      {entry.unitTitle || 'Practice Quiz'}
+                    </Text>
+                    <Text style={[
+                      styles.latestScorePercent,
+                      { color: entry.percentage >= 70 ? colors.correctText : entry.percentage >= 60 ? colors.intermediateText : colors.wrongText },
+                    ]}>
+                      {entry.percentage}%
+                    </Text>
+                    <View style={styles.latestScoreStars}>
+                      {Array.from({ length: 3 }).map((_, i) =>
+                        i < entry.stars ? (
+                          <Star key={i} size={10} color="#EAB308" fill="#EAB308" />
+                        ) : (
+                          <Star key={i} size={10} color="#D4D4D4" />
+                        )
+                      )}
+                    </View>
+                    <Text style={styles.latestScoreDate}>{formatRelativeDate(entry.date)}</Text>
                   </View>
-                  <Text style={[
-                    styles.scoreEntryPercent,
-                    { color: entry.percentage >= 70 ? colors.correctText : entry.percentage >= 60 ? colors.intermediateText : colors.wrongText },
-                  ]}>
-                    {entry.percentage}%
-                  </Text>
                 </View>
-              </View>
-            ))}
+              );
+            })()}
           </View>
-        ) : null}
+        }
         renderItem={({ item: group }) => (
           <View style={styles.projectGroup}>
             <Text style={styles.projectGroupTitle}>{group.projectTitle}</Text>
@@ -283,7 +288,7 @@ const styles = StyleSheet.create({
   },
   listContent: {
     padding: 16,
-    paddingBottom: 40,
+    paddingBottom: 0,
   },
   projectGroup: {
     marginBottom: 24,
@@ -298,8 +303,8 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     backgroundColor: '#fff',
     borderRadius: 12,
-    padding: 14,
-    marginBottom: 2,
+    padding: 10,
+    marginBottom: 10,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.04,
@@ -346,7 +351,7 @@ const styles = StyleSheet.create({
   },
   connector: {
     width: 2,
-    height: 20,
+    height: 14,
     backgroundColor: '#D4D4D4',
     marginTop: 4,
   },
@@ -395,60 +400,60 @@ const styles = StyleSheet.create({
     color: '#A1A1A1',
     fontWeight: '500',
   },
+  // Path summary
+  pathSummary: {
+    marginBottom: 12,
+  },
+  pathSummaryTitle: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: colors.foreground,
+  },
+  pathSummarySubtitle: {
+    fontSize: 14,
+    color: colors.muted,
+    marginTop: 2,
+  },
   // Recent scores
   recentScoresSection: {
     backgroundColor: '#fff',
     borderRadius: 12,
-    padding: 14,
-    marginBottom: 20,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    marginBottom: 16,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.04,
     shadowRadius: 3,
     elevation: 1,
   },
-  recentScoresHeader: {
+  latestScoreRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
-    marginBottom: 10,
   },
-  recentScoresTitle: {
-    fontSize: 15,
+  latestScoreLabel: {
+    fontSize: 13,
     fontWeight: '600',
-    color: '#171717',
+    color: colors.muted,
   },
-  scoreEntry: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: 8,
-    borderTopWidth: 1,
-    borderTopColor: '#F3F4F6',
-  },
-  scoreEntryLeft: {
-    flex: 1,
-  },
-  scoreEntryTitle: {
-    fontSize: 14,
+  latestScoreTitle: {
+    fontSize: 13,
     fontWeight: '500',
-    color: '#171717',
+    color: colors.foreground,
+    flexShrink: 1,
   },
-  scoreEntryDate: {
-    fontSize: 12,
-    color: '#A1A1A1',
-    marginTop: 1,
+  latestScorePercent: {
+    fontSize: 13,
+    fontWeight: '700',
   },
-  scoreEntryRight: {
-    alignItems: 'flex-end',
-    gap: 2,
-  },
-  scoreEntryStars: {
+  latestScoreStars: {
     flexDirection: 'row',
-    gap: 2,
+    gap: 1,
   },
-  scoreEntryPercent: {
-    fontSize: 14,
-    fontWeight: '600',
+  latestScoreDate: {
+    fontSize: 12,
+    color: colors.muted,
   },
 });
 

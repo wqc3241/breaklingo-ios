@@ -16,6 +16,8 @@ export const useLearningUnits = (userId: string | undefined) => {
   const [isGenerating, setIsGenerating] = useState(false);
   const [hasMore, setHasMore] = useState(true);
   const [page, setPage] = useState(0);
+  const [totalUnits, setTotalUnits] = useState(0);
+  const [totalProjects, setTotalProjects] = useState(0);
   const pollingRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const projectTitleMapRef = useRef<Record<string, string>>({});
   const projectIdsRef = useRef<any[]>([]);
@@ -46,6 +48,7 @@ export const useLearningUnits = (userId: string | undefined) => {
       projects.forEach((p: any) => { projectTitleMap[p.id] = p.title; });
       projectTitleMapRef.current = projectTitleMap;
       projectIdsRef.current = projectIds;
+      setTotalProjects(projects.length);
 
       // Fetch learning units (first page, lightweight — no questions column)
       const { data: dbUnits, error: unitsError } = await supabase
@@ -81,8 +84,24 @@ export const useLearningUnits = (userId: string | undefined) => {
       setUnits(mapped);
       setHasMore(dbUnits.length >= PAGE_SIZE);
 
-      // Generate missing project units in background (non-blocking)
-      const projectsWithUnits = new Set(dbUnits.map((u: any) => String(u.project_id)));
+      // Check ALL projects for missing units (not just those in the first page).
+      // The paginated dbUnits may only contain units from older projects, so we
+      // query distinct project_ids across all learning_units to detect new projects
+      // that still need unit generation.
+      let projectsWithUnits: Set<string>;
+      const { data: allUnitProjects, error: coverageError } = await supabase
+        .from('learning_units')
+        .select('project_id')
+        .in('project_id', projectIds);
+
+      if (coverageError || !allUnitProjects) {
+        // Fallback to checking only first-page units
+        projectsWithUnits = new Set(dbUnits.map((u: any) => String(u.project_id)));
+        setTotalUnits(dbUnits.length);
+      } else {
+        projectsWithUnits = new Set(allUnitProjects.map((u: any) => String(u.project_id)));
+        setTotalUnits(allUnitProjects.length);
+      }
       const projectsMissing = projects.filter((p: any) => !projectsWithUnits.has(String(p.id)));
 
       if (projectsMissing.length > 0) {
@@ -263,6 +282,8 @@ export const useLearningUnits = (userId: string | undefined) => {
     isLoading,
     isGenerating,
     hasMore,
+    totalUnits,
+    totalProjects,
     fetchUnits,
     fetchMoreUnits,
     fetchUnitQuestions,
