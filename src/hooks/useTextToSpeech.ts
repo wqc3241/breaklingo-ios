@@ -84,5 +84,15 @@ export const useTextToSpeech = () => {
     }
   }, [isPlaying, currentText]);
 
-  return { speak, isPlaying, currentText };
+  const stop = useCallback(async () => {
+    try {
+      if (AudioPlayerModule) {
+        await AudioPlayerModule.stop();
+      }
+    } catch {}
+    setIsPlaying(false);
+    setCurrentText(null);
+  }, []);
+
+  return { speak, stop, isPlaying, currentText };
 };

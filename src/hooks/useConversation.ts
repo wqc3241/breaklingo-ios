@@ -1,10 +1,11 @@
-import { useState, useCallback, useRef } from 'react';
+import { useState, useCallback, useRef, useEffect } from 'react';
 import { Alert } from 'react-native';
 import { supabase } from '../lib/supabase';
 import { useTextToSpeech } from './useTextToSpeech';
 import { useWhisperSTT } from './useWhisperSTT';
 import { isStopPhrase } from '../lib/languageUtils';
 import { saveSession } from '../lib/conversationStorage';
+import { convertMessagesToEdgeFormat } from '../lib/conversationUtils';
 import type {
   ConversationMessage,
   ConversationState,
@@ -12,6 +13,9 @@ import type {
   ConversationSession,
   AppProject,
 } from '../lib/types';
+
+// Delay after TTS finishes before starting mic, to avoid picking up speaker echo
+const AUTO_LISTEN_DELAY_MS = 600;
 
 export const useConversation = () => {
   const [messages, setMessages] = useState<ConversationMessage[]>([]);
@@ -26,13 +30,13 @@ export const useConversation = () => {
 
   const autoListenEnabledRef = useRef(true);
 
-  const { speak, isPlaying } = useTextToSpeech();
-  const { startListening, stopListening, cancelListening, isListening, isTranscribing, finalTranscript } = useWhisperSTT();
+  const { speak, stop: stopTTS, isPlaying } = useTextToSpeech();
+  const { startListening, stopListening, cancelListening, isListening, isSpeechActive, isTranscribing, finalTranscript, setOnSilenceCallback } = useWhisperSTT();
 
   const autoListenAfterSpeak = useCallback(() => {
     if (!autoListenEnabledRef.current) return;
     // Delay slightly so TTS audio doesn't get picked up by mic
-    setTimeout(async () => {
+    setTimeout(async () => { // eslint-disable-line @typescript-eslint/no-misused-promises
       if (!autoListenEnabledRef.current) return;
       try {
         setState('listening');
@@ -41,7 +45,7 @@ export const useConversation = () => {
         console.error('Auto-listen failed:', error);
         setState('idle');
       }
-    }, 600);
+    }, AUTO_LISTEN_DELAY_MS);
   }, [startListening]);
 
   const setAutoListen = useCallback((enabled: boolean) => {
@@ -112,10 +116,11 @@ export const useConversation = () => {
       setMessages([aiMessage]);
       setState('idle');
     }
-  }, [speak]);
+  }, [speak, autoListenAfterSpeak]);
 
   const processUserInput = useCallback(async (text: string) => {
-    if (!text.trim() || !projectRef.current) return;
+    const project = projectRef.current;
+    if (!text.trim() || !project) return;
 
     // Check for stop phrase
     if (isStopPhrase(text)) {
@@ -134,19 +139,16 @@ export const useConversation = () => {
 
     try {
       // Use messagesRef to get current messages and avoid stale closure
-      const allMessages = [...messagesRef.current, userMessage].map((m) => ({
-        role: m.role,
-        content: m.content,
-      }));
+      const allMessages = convertMessagesToEdgeFormat([...messagesRef.current, userMessage]);
 
       const { data, error } = await supabase.functions.invoke('conversation-chat', {
         body: {
           messages: allMessages,
           projectContext: {
-            vocabulary: projectRef.current!.vocabulary,
-            grammar: projectRef.current!.grammar,
-            detectedLanguage: projectRef.current!.detectedLanguage,
-            title: projectRef.current!.title,
+            vocabulary: project.vocabulary,
+            grammar: project.grammar,
+            detectedLanguage: project.detectedLanguage,
+            title: project.title,
           },
         },
       });
@@ -176,7 +178,7 @@ export const useConversation = () => {
       Alert.alert('Error', 'Something went wrong. Please try again.');
       setState('idle');
     }
-  }, [speak]);
+  }, [speak, autoListenAfterSpeak]);
 
   const sendTextMessage = useCallback(async (text: string) => {
     await processUserInput(text);
@@ -200,10 +202,21 @@ export const useConversation = () => {
       console.error('Voice input error:', error);
       setState('idle');
     }
-  }, [isListening, startListening, stopListening, processUserInput]);
+  }, [isListening, startListening, stopListening, processUserInput, autoListenAfterSpeak]);
+
+  // Register silence detection callback — auto-stop recording when user stops speaking
+  const handleVoiceInputRef = useRef(handleVoiceInput);
+  handleVoiceInputRef.current = handleVoiceInput;
+  useEffect(() => {
+    setOnSilenceCallback(() => {
+      handleVoiceInputRef.current();
+    });
+    return () => setOnSilenceCallback(null);
+  }, [setOnSilenceCallback]);
 
   const stopConversation = useCallback(async () => {
     autoListenEnabledRef.current = false;
+    stopTTS();
     await cancelListening();
     setState('processing');
 
@@ -212,18 +225,26 @@ export const useConversation = () => {
       const currentMessages = messagesRef.current;
       const { data, error } = await supabase.functions.invoke('conversation-summary', {
         body: {
-          messages: currentMessages.map((m) => ({ role: m.role, content: m.content })),
+          messages: convertMessagesToEdgeFormat(currentMessages),
+          projectContext: {
+            vocabulary: projectRef.current?.vocabulary || [],
+            grammar: projectRef.current?.grammar || [],
+            detectedLanguage: projectRef.current?.detectedLanguage || 'Unknown',
+            title: projectRef.current?.title || '',
+          },
           language: projectRef.current?.detectedLanguage || 'Unknown',
         },
       });
 
-      if (!error && data) {
+      if (!error && data?.summary) {
+        const s = data.summary;
         const summaryData: ConversationSummary = {
-          score: data.score || 0,
-          sentencesReviewed: data.sentencesReviewed || data.sentences_reviewed || [],
-          vocabularyFeedback: data.vocabularyFeedback || data.vocabulary_feedback || [],
-          grammarFeedback: data.grammarFeedback || data.grammar_feedback || [],
-          overallFeedback: data.overallFeedback || data.overall_feedback || '',
+          overallScore: s.overallScore ?? 0,
+          overallComment: s.overallComment || '',
+          sentencesUsed: s.sentencesUsed || [],
+          vocabularyUsed: s.vocabularyUsed || [],
+          grammarPatterns: s.grammarPatterns || [],
+          feedback: s.feedback || [],
         };
         setSummary(summaryData);
 
@@ -247,22 +268,25 @@ export const useConversation = () => {
     } finally {
       setState('idle');
     }
-  }, [currentSessionId, cancelListening]);
+  }, [currentSessionId, cancelListening, stopTTS]);
 
   const resetConversation = useCallback(() => {
+    stopTTS();
+    cancelListening();
     autoListenEnabledRef.current = true;
     setMessages([]);
     setSummary(null);
     setState('idle');
     setCurrentSessionId(null);
     projectRef.current = null;
-  }, []);
+  }, [stopTTS, cancelListening]);
 
   return {
     messages,
     state,
     summary,
     isListening,
+    isSpeechActive,
     isTranscribing,
     finalTranscript,
     isPlaying,
