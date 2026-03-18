@@ -5,6 +5,7 @@ import { useAuth } from '../hooks/useAuth';
 import { AuthStack } from './AuthStack';
 import { MainTabs } from './MainTabs';
 import { ProjectProvider } from '../context/ProjectContext';
+import { StatsProvider } from '../context/StatsContext';
 import { OnboardingGuide } from '../components/common/OnboardingGuide';
 
 export const AppNavigator: React.FC = () => {
@@ -21,10 +22,12 @@ export const AppNavigator: React.FC = () => {
   return (
     <NavigationContainer>
       {session ? (
-        <ProjectProvider user={user}>
-          <MainTabs />
-          <OnboardingGuide />
-        </ProjectProvider>
+        <StatsProvider>
+          <ProjectProvider user={user}>
+            <MainTabs />
+            <OnboardingGuide />
+          </ProjectProvider>
+        </StatsProvider>
       ) : (
         <AuthStack />
       )}

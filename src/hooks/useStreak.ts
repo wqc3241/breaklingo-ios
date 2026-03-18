@@ -1,7 +1,7 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useContext } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
-const STREAK_KEY = 'breaklingo-streak-data';
+export const STREAK_KEY = 'breaklingo-streak-data';
 
 export interface StreakData {
   currentStreak: number;
@@ -9,24 +9,24 @@ export interface StreakData {
   longestStreak: number;
 }
 
-const getToday = (): string => {
+export const getToday = (): string => {
   const d = new Date();
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 };
 
-const getYesterday = (): string => {
+export const getYesterday = (): string => {
   const d = new Date();
   d.setDate(d.getDate() - 1);
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 };
 
-const DEFAULT_STREAK: StreakData = {
+export const DEFAULT_STREAK: StreakData = {
   currentStreak: 0,
   lastActiveDate: '',
   longestStreak: 0,
 };
 
-const loadStreakData = async (): Promise<StreakData> => {
+export const loadStreakData = async (): Promise<StreakData> => {
   try {
     const stored = await AsyncStorage.getItem(STREAK_KEY);
     return stored ? JSON.parse(stored) : DEFAULT_STREAK;
@@ -35,7 +35,7 @@ const loadStreakData = async (): Promise<StreakData> => {
   }
 };
 
-const saveStreakData = async (data: StreakData): Promise<void> => {
+export const saveStreakData = async (data: StreakData): Promise<void> => {
   try {
     await AsyncStorage.setItem(STREAK_KEY, JSON.stringify(data));
   } catch (error) {
@@ -47,7 +47,7 @@ const saveStreakData = async (data: StreakData): Promise<void> => {
  * Refreshes streak state without marking a day complete.
  * If lastActiveDate is older than yesterday, the streak is broken and resets to 0.
  */
-const refreshStreak = (data: StreakData): StreakData => {
+export const refreshStreak = (data: StreakData): StreakData => {
   const today = getToday();
   const yesterday = getYesterday();
 
@@ -63,53 +63,19 @@ const refreshStreak = (data: StreakData): StreakData => {
   };
 };
 
+/**
+ * Hook that delegates to StatsContext for shared streak state.
+ * Import useStatsContext from context/StatsContext for the actual implementation.
+ * This hook is a convenience wrapper.
+ */
 export const useStreak = () => {
-  const [streak, setStreak] = useState<StreakData>(DEFAULT_STREAK);
-
-  useEffect(() => {
-    loadStreakData().then((data) => {
-      const refreshed = refreshStreak(data);
-      setStreak(refreshed);
-      // Persist if streak was reset
-      if (refreshed.currentStreak !== data.currentStreak) {
-        saveStreakData(refreshed);
-      }
-    });
-  }, []);
-
-  const markDayComplete = useCallback(async () => {
-    const current = await loadStreakData();
-    const today = getToday();
-    const yesterday = getYesterday();
-
-    // Already counted today
-    if (current.lastActiveDate === today) {
-      return;
-    }
-
-    let newStreak: number;
-    if (current.lastActiveDate === yesterday) {
-      // Continuing streak
-      newStreak = current.currentStreak + 1;
-    } else {
-      // Starting fresh
-      newStreak = 1;
-    }
-
-    const updated: StreakData = {
-      currentStreak: newStreak,
-      lastActiveDate: today,
-      longestStreak: Math.max(newStreak, current.longestStreak),
-    };
-
-    await saveStreakData(updated);
-    setStreak(updated);
-  }, []);
-
+  // Lazy import to avoid circular dependency
+  const { useStatsContext } = require('../context/StatsContext');
+  const stats = useStatsContext();
   return {
-    currentStreak: streak.currentStreak,
-    longestStreak: streak.longestStreak,
-    lastActiveDate: streak.lastActiveDate,
-    markDayComplete,
+    currentStreak: stats.currentStreak,
+    longestStreak: stats.longestStreak,
+    lastActiveDate: stats.lastActiveDate,
+    markDayComplete: stats.markDayComplete,
   };
 };
