@@ -67,6 +67,7 @@ jest.mock('../../src/context/ProjectContext', () => {
       currentProject: null,
       setCurrentProject: jest.fn(),
       autoSaveProject: jest.fn(),
+      fetchProjects: jest.fn().mockResolvedValue([]),
     }),
   };
 });
@@ -133,6 +134,7 @@ jest.mock('../../src/hooks/useWhisperSTT', () => ({
     transcript: '',
     startRecording: jest.fn(),
     stopRecording: jest.fn(),
+    setOnSilenceCallback: jest.fn(),
   }),
 }));
 

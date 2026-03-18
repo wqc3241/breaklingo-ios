@@ -14,10 +14,11 @@ describe('FeedbackDialog', () => {
   });
 
   it('renders title and close button when visible', () => {
-    const { getByText, getByTestId } = render(
+    const { getAllByText, getByTestId } = render(
       <FeedbackDialog visible={true} onClose={jest.fn()} />
     );
-    expect(getByText('Send Feedback')).toBeTruthy();
+    // "Submit Feedback" appears as both the dialog title and the button
+    expect(getAllByText('Submit Feedback').length).toBeGreaterThanOrEqual(1);
     expect(getByTestId('icon-X')).toBeTruthy();
   });
 
@@ -25,17 +26,18 @@ describe('FeedbackDialog', () => {
     const { getByText } = render(
       <FeedbackDialog visible={true} onClose={jest.fn()} />
     );
-    expect(getByText('General')).toBeTruthy();
     expect(getByText('Bug Report')).toBeTruthy();
     expect(getByText('Feature Request')).toBeTruthy();
-    expect(getByText('Question')).toBeTruthy();
+    expect(getByText('General Feedback')).toBeTruthy();
   });
 
   it('renders submit button', () => {
-    const { getByText } = render(
+    const { getAllByText } = render(
       <FeedbackDialog visible={true} onClose={jest.fn()} />
     );
-    expect(getByText('Submit Feedback')).toBeTruthy();
+    // "Submit Feedback" appears as both title and button text
+    const matches = getAllByText('Submit Feedback');
+    expect(matches.length).toBeGreaterThanOrEqual(2);
   });
 
   it('shows character count', () => {
@@ -46,22 +48,21 @@ describe('FeedbackDialog', () => {
   });
 
   it('disables submit button when message is empty', () => {
-    const onAnswer = jest.fn();
-    const { getByText } = render(
+    const { getAllByText } = render(
       <FeedbackDialog visible={true} onClose={jest.fn()} />
     );
 
     // The button should be disabled when empty (disabled={isSubmitting || !message.trim()})
-    const submitButton = getByText('Submit Feedback');
-    expect(submitButton).toBeTruthy();
+    const submitButtons = getAllByText('Submit Feedback');
+    expect(submitButtons.length).toBeGreaterThanOrEqual(1);
     // Pressing disabled button should not trigger API call
-    fireEvent.press(submitButton);
+    fireEvent.press(submitButtons[submitButtons.length - 1]);
     expect(supabase.functions.invoke).not.toHaveBeenCalled();
   });
 
   it('calls onClose when close button pressed', () => {
     const onClose = jest.fn();
-    const { getByText, getByTestId } = render(
+    const { getByTestId } = render(
       <FeedbackDialog visible={true} onClose={onClose} />
     );
 
@@ -70,7 +71,7 @@ describe('FeedbackDialog', () => {
   });
 
   it('submits feedback successfully', async () => {
-    const { getByText, getByPlaceholderText } = render(
+    const { getAllByText, getByPlaceholderText } = render(
       <FeedbackDialog visible={true} onClose={jest.fn()} />
     );
 
@@ -79,12 +80,13 @@ describe('FeedbackDialog', () => {
       'Great app!'
     );
 
+    const submitButtons = getAllByText('Submit Feedback');
     await act(async () => {
-      fireEvent.press(getByText('Submit Feedback'));
+      fireEvent.press(submitButtons[submitButtons.length - 1]);
     });
 
     expect(supabase.functions.invoke).toHaveBeenCalledWith('submit-feedback', {
-      body: { category: 'General', message: 'Great app!' },
+      body: { category: 'General Feedback', message: 'Great app!' },
     });
   });
 

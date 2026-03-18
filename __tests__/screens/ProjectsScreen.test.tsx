@@ -12,7 +12,33 @@ jest.mock('@react-navigation/native', () => ({
   useRoute: () => ({ params: {} }),
 }));
 
-const mockFetchProjects = jest.fn(() => Promise.resolve([] as any[]));
+jest.mock('../../src/hooks/useAuth', () => ({
+  useAuth: () => ({
+    user: { id: 'test-user-id', email: 'test@test.com' },
+  }),
+}));
+
+const mockFetchProjects = jest.fn(() => Promise.resolve());
+const mockFetchMore = jest.fn();
+const mockUpdateProjectLocally = jest.fn();
+const mockRemoveProjectLocally = jest.fn();
+let mockProjects: any[] = [];
+let mockIsLoading = false;
+
+jest.mock('../../src/hooks/useProjectList', () => ({
+  useProjectList: () => ({
+    projects: mockProjects,
+    isLoading: mockIsLoading,
+    isLoadingMore: false,
+    hasMore: false,
+    fetchProjects: mockFetchProjects,
+    fetchMore: mockFetchMore,
+    refresh: mockFetchProjects,
+    updateProjectLocally: mockUpdateProjectLocally,
+    removeProjectLocally: mockRemoveProjectLocally,
+  }),
+}));
+
 const mockSetCurrentProject = jest.fn();
 const mockDeleteProject = jest.fn();
 const mockToggleFavorite = jest.fn();
@@ -20,7 +46,6 @@ const mockToggleFavorite = jest.fn();
 jest.mock('../../src/context/ProjectContext', () => ({
   useProjectContext: () => ({
     setCurrentProject: mockSetCurrentProject,
-    fetchProjects: mockFetchProjects,
     deleteProject: mockDeleteProject,
     toggleFavorite: mockToggleFavorite,
   }),
@@ -29,7 +54,8 @@ jest.mock('../../src/context/ProjectContext', () => ({
 describe('ProjectsScreen', () => {
   beforeEach(() => {
     jest.clearAllMocks();
-    mockFetchProjects.mockResolvedValue([]);
+    mockProjects = [];
+    mockIsLoading = false;
   });
 
   it('renders search input', () => {
@@ -45,7 +71,7 @@ describe('ProjectsScreen', () => {
   });
 
   it('renders projects after loading', async () => {
-    mockFetchProjects.mockResolvedValue([
+    mockProjects = [
       {
         id: '1',
         title: 'Japanese Lesson 1',
@@ -53,9 +79,9 @@ describe('ProjectsScreen', () => {
         vocabulary: [{ word: 'a', meaning: 'b' }],
         grammar: [],
         status: 'completed',
-        is_favorite: false,
+        isFavorite: false,
       },
-    ]);
+    ];
 
     const { getByText } = render(<ProjectsScreen />);
     await waitFor(() => {

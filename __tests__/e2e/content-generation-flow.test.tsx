@@ -90,6 +90,7 @@ jest.mock('../../src/context/ProjectContext', () => ({
     currentProject: null,
     setCurrentProject: mockSetCurrentProject,
     autoSaveProject: mockAutoSaveProject,
+    fetchProjects: jest.fn().mockResolvedValue([]),
   }),
 }));
 

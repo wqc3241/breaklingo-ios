@@ -15,14 +15,6 @@ jest.mock('../../src/context/ProjectContext', () => ({
   }),
 }));
 
-jest.mock('../../src/hooks/useVideoProcessing', () => ({
-  useVideoProcessing: () => ({
-    regenerateAnalysis: jest.fn(),
-    isProcessing: false,
-    processingStep: '',
-  }),
-}));
-
 const mockSpeak = jest.fn();
 jest.mock('../../src/hooks/useTextToSpeech', () => ({
   useTextToSpeech: () => ({
@@ -127,7 +119,6 @@ describe('StudyScreen', () => {
     const { getByText } = render(<StudyScreen />);
     expect(getByText('Generation failed')).toBeTruthy();
     expect(getByText('Rate limit exceeded')).toBeTruthy();
-    expect(getByText('Try Again')).toBeTruthy();
   });
 
   it('shows pending status card', () => {
