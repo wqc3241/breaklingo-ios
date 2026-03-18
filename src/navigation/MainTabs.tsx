@@ -12,7 +12,9 @@ import QuizScreen from '../screens/QuizScreen';
 import TalkScreen from '../screens/TalkScreen';
 import { useAuth } from '../hooks/useAuth';
 import { FeedbackDialog } from '../components/common/FeedbackDialog';
+import { AppRatingPrompt } from '../components/common/AppRatingPrompt';
 import StatsHeader from '../components/common/StatsHeader';
+import { useAppRating } from '../hooks/useAppRating';
 import { colors } from '../lib/theme';
 
 const ProfileContext = createContext<{ toggle: () => void }>({ toggle: () => {} });
@@ -51,6 +53,7 @@ const ProfileHeaderButton = () => {
       style={styles.profileButton}
       onPress={toggle}
       hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+      accessibilityLabel="Open profile menu"
     >
       <CircleUserRound size={22} color={colors.foreground} strokeWidth={1.5} />
     </TouchableOpacity>
@@ -108,6 +111,7 @@ export const MainTabs: React.FC = () => {
   const [showFeedback, setShowFeedback] = useState(false);
   const navRef = useRef<any>(null);
   const { user, handleLogout } = useAuth();
+  const { showRating, onRate, onDismiss } = useAppRating();
 
   const closeMenu = () => setShowMoreMenu(false);
   const closeProfileMenu = () => setShowProfileMenu(false);
@@ -249,6 +253,12 @@ export const MainTabs: React.FC = () => {
         <FeedbackDialog
           visible={showFeedback}
           onClose={() => setShowFeedback(false)}
+        />
+
+        <AppRatingPrompt
+          visible={showRating}
+          onRate={onRate}
+          onDismiss={onDismiss}
         />
       </View>
     </ProfileContext.Provider>

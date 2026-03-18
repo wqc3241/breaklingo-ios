@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useEffect } from 'react';
+import React, { useState, useCallback, useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -6,12 +6,16 @@ import {
   TouchableOpacity,
   ActivityIndicator,
   ScrollView,
+  Alert,
+  Animated,
+  Easing,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { FileText, Trophy, Heart, Star, X } from 'lucide-react-native';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import ErrorBoundary from '../components/common/ErrorBoundary';
+import { useStopAudioOnBlur } from '../hooks/useStopAudioOnBlur';
 import { useAuth } from '../hooks/useAuth';
 import { useLearningUnits } from '../hooks/useLearningUnits';
 import { useQuizData } from '../hooks/useQuizData';
@@ -75,6 +79,9 @@ const QuizScreen: React.FC = () => {
   const { markDayComplete } = useStreak();
   const { addXP } = useExperience();
 
+  // Stop TTS audio and any active recording when navigating away from quiz
+  useStopAudioOnBlur();
+
   const [currentIndex, setCurrentIndex] = useState(0);
   const [score, setScore] = useState(0);
   const [hearts, setHearts] = useState(MAX_HEARTS);
@@ -82,6 +89,12 @@ const QuizScreen: React.FC = () => {
   const [totalQuestions, setTotalQuestions] = useState(0);
   const [activeQuestions, setActiveQuestions] = useState<QuizQuestion[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+
+  // Completion animations
+  const trophyScale = useRef(new Animated.Value(0)).current;
+  const starsOpacity = useRef(new Animated.Value(0)).current;
+  const scoreOpacity = useRef(new Animated.Value(0)).current;
+  const actionsOpacity = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
     if (unitId) {
@@ -160,8 +173,44 @@ const QuizScreen: React.FC = () => {
   useEffect(() => {
     if (isComplete) {
       handleComplete();
+
+      // Reset animation values
+      trophyScale.setValue(0);
+      starsOpacity.setValue(0);
+      scoreOpacity.setValue(0);
+      actionsOpacity.setValue(0);
+
+      // Staggered entrance animations
+      Animated.sequence([
+        // Trophy bounce in
+        Animated.spring(trophyScale, {
+          toValue: 1,
+          damping: 12,
+          stiffness: 150,
+          useNativeDriver: true,
+        }),
+        // Stars fade in
+        Animated.timing(starsOpacity, {
+          toValue: 1,
+          duration: 300,
+          easing: Easing.out(Easing.ease),
+          useNativeDriver: true,
+        }),
+        // Score fade in
+        Animated.timing(scoreOpacity, {
+          toValue: 1,
+          duration: 200,
+          useNativeDriver: true,
+        }),
+        // Actions fade in
+        Animated.timing(actionsOpacity, {
+          toValue: 1,
+          duration: 200,
+          useNativeDriver: true,
+        }),
+      ]).start();
     }
-  }, [isComplete, handleComplete]);
+  }, [isComplete]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const restartQuiz = async () => {
     setCurrentIndex(0);
@@ -298,11 +347,11 @@ const QuizScreen: React.FC = () => {
     return (
       <SafeAreaView style={styles.container}>
         <ScrollView contentContainerStyle={styles.resultsContainer}>
-          <View style={styles.resultsEmoji}>
+          <Animated.View style={[styles.resultsEmoji, { transform: [{ scale: trophyScale }] }]}>
             <Trophy size={64} color="#EAB308" />
-          </View>
+          </Animated.View>
           <Text style={styles.resultsTitle}>Quiz Complete!</Text>
-          <View style={styles.starsDisplay}>
+          <Animated.View style={[styles.starsDisplay, { opacity: starsOpacity }]}>
             {Array.from({ length: 3 }).map((_, i) =>
               i < stars ? (
                 <Star key={i} size={20} color="#EAB308" fill="#EAB308" />
@@ -310,15 +359,17 @@ const QuizScreen: React.FC = () => {
                 <Star key={i} size={20} color="#D4D4D4" />
               )
             )}
-          </View>
-          <Text style={styles.resultsScore}>
-            {score}/{totalQuestions} correct ({percentage}%)
-          </Text>
-          {hearts <= 0 && (
-            <Text style={styles.heartsOutText}>You ran out of hearts!</Text>
-          )}
+          </Animated.View>
+          <Animated.View style={{ opacity: scoreOpacity }}>
+            <Text style={styles.resultsScore}>
+              {score}/{totalQuestions} correct ({percentage}%)
+            </Text>
+            {hearts <= 0 && (
+              <Text style={styles.heartsOutText}>You ran out of hearts!</Text>
+            )}
+          </Animated.View>
 
-          <View style={styles.resultsActions}>
+          <Animated.View style={[styles.resultsActions, { opacity: actionsOpacity }]}>
             <TouchableOpacity style={styles.primaryActionButton} onPress={restartQuiz}>
               <Text style={styles.primaryActionText}>Try Again</Text>
             </TouchableOpacity>
@@ -328,13 +379,29 @@ const QuizScreen: React.FC = () => {
             >
               <Text style={styles.secondaryActionText}>Done</Text>
             </TouchableOpacity>
-          </View>
+          </Animated.View>
         </ScrollView>
       </SafeAreaView>
     );
   }
 
   const currentQuestion = activeQuestions[currentIndex];
+
+  if (!currentQuestion) {
+    return (
+      <SafeAreaView style={styles.container}>
+        <View style={styles.center}>
+          <Text style={styles.emptyTitle}>Question not available</Text>
+          <TouchableOpacity
+            style={styles.backButton}
+            onPress={() => navigation.goBack()}
+          >
+            <Text style={styles.backButtonText}>Go Back</Text>
+          </TouchableOpacity>
+        </View>
+      </SafeAreaView>
+    );
+  }
 
   return (
     <SafeAreaView style={styles.container}>
@@ -351,6 +418,23 @@ const QuizScreen: React.FC = () => {
         <Text style={styles.progressText}>
           {currentIndex + 1}/{activeQuestions.length}
         </Text>
+        <TouchableOpacity
+          onPress={() => {
+            Alert.alert(
+              'Exit Quiz',
+              'Are you sure? Your progress will be lost.',
+              [
+                { text: 'Cancel', style: 'cancel' },
+                { text: 'Exit', style: 'destructive', onPress: () => navigation.goBack() },
+              ],
+            );
+          }}
+          hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+          style={styles.exitButton}
+          accessibilityLabel="Exit quiz"
+        >
+          <X size={20} color="#A1A1A1" />
+        </TouchableOpacity>
       </View>
 
       {/* Hearts */}
@@ -416,6 +500,10 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#A1A1A1',
     fontWeight: '500',
+  },
+  exitButton: {
+    marginLeft: 8,
+    padding: 4,
   },
   heartsRow: {
     flexDirection: 'row',

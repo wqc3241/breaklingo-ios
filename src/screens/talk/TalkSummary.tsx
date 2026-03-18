@@ -4,9 +4,14 @@ import {
   Text,
   StyleSheet,
   TouchableOpacity,
+  ScrollView,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { MessageCircle } from 'lucide-react-native';
+import {
+  MessageCircle,
+  CheckCircle,
+  XCircle,
+} from 'lucide-react-native';
 import { colors } from '../../lib/theme';
 import type { ConversationSummary } from '../../lib/types';
 
@@ -18,7 +23,7 @@ interface TalkSummaryProps {
 const TalkSummary: React.FC<TalkSummaryProps> = ({ summary, onDone }) => {
   return (
     <SafeAreaView style={styles.container} edges={[]}>
-      <View style={styles.summaryContainer}>
+      <ScrollView contentContainerStyle={styles.scrollContent}>
         <View style={styles.summaryIconContainer}>
           <View style={styles.summaryIconCircle}>
             <MessageCircle size={36} color={colors.primary} />
@@ -28,23 +33,111 @@ const TalkSummary: React.FC<TalkSummaryProps> = ({ summary, onDone }) => {
 
         {summary ? (
           <>
-            <Text style={styles.summaryScore}>Score: {summary.score}%</Text>
-            <Text style={styles.summaryFeedback}>{summary.overallFeedback}</Text>
+            <Text style={styles.summaryScore}>
+              Score: {summary.overallScore}/10
+            </Text>
+            <Text style={styles.summaryFeedback}>
+              {summary.overallComment}
+            </Text>
 
-            {summary.vocabularyFeedback.length > 0 && (
+            {/* Feedback items */}
+            {Array.isArray(summary.feedback) && summary.feedback.length > 0 && (
               <View style={styles.feedbackSection}>
-                <Text style={styles.feedbackLabel}>Vocabulary</Text>
-                {summary.vocabularyFeedback.map((item, i) => (
-                  <Text key={i} style={styles.feedbackItem}>{'\u2022'} {item}</Text>
+                <Text style={styles.feedbackLabel}>Feedback</Text>
+                {summary.feedback.map((item: any, i: number) => {
+                  if (typeof item === 'string') {
+                    return <Text key={i} style={styles.feedbackMessage}>{'\u2022'} {item}</Text>;
+                  }
+                  return (
+                    <View key={i} style={styles.feedbackRow}>
+                      {item.category ? (
+                        <Text style={[
+                          styles.feedbackBadge,
+                          item.severity === 'positive' && styles.feedbackPositive,
+                          item.severity === 'negative' && styles.feedbackNegative,
+                          item.severity === 'neutral' && styles.feedbackNeutral,
+                        ]}>
+                          {String(item.category || '')}
+                        </Text>
+                      ) : null}
+                      <Text style={styles.feedbackMessage}>
+                        {String(item.message || item.comment || item.feedback || '')}
+                      </Text>
+                    </View>
+                  );
+                })}
+              </View>
+            )}
+
+            {/* Sentences used */}
+            {Array.isArray(summary.sentencesUsed) && summary.sentencesUsed.length > 0 && (
+              <View style={styles.feedbackSection}>
+                <Text style={styles.feedbackLabel}>Sentences</Text>
+                {summary.sentencesUsed.map((s, i) => (
+                  <View key={i} style={styles.sentenceCard}>
+                    <View style={styles.sentenceHeader}>
+                      {s.isCorrect ? (
+                        <CheckCircle size={16} color={colors.correctText} />
+                      ) : (
+                        <XCircle size={16} color={colors.destructive} />
+                      )}
+                      <Text style={styles.sentenceOriginal}>{s.original}</Text>
+                    </View>
+                    {!s.isCorrect && s.corrected && (
+                      <Text style={styles.sentenceCorrected}>
+                        Corrected: {s.corrected}
+                      </Text>
+                    )}
+                    {s.translation && (
+                      <Text style={styles.sentenceTranslation}>
+                        {s.translation}
+                      </Text>
+                    )}
+                  </View>
                 ))}
               </View>
             )}
 
-            {summary.grammarFeedback.length > 0 && (
+            {/* Vocabulary used */}
+            {Array.isArray(summary.vocabularyUsed) && summary.vocabularyUsed.length > 0 && (
+              <View style={styles.feedbackSection}>
+                <Text style={styles.feedbackLabel}>Vocabulary</Text>
+                {summary.vocabularyUsed.map((v, i) => (
+                  <View key={i} style={styles.vocabRow}>
+                    {v.usedCorrectly ? (
+                      <CheckCircle size={14} color={colors.correctText} />
+                    ) : (
+                      <XCircle size={14} color={colors.destructive} />
+                    )}
+                    <View style={styles.vocabInfo}>
+                      <Text style={styles.vocabWord}>{v.word}</Text>
+                      {v.context ? (
+                        <Text style={styles.vocabContext}>{v.context}</Text>
+                      ) : null}
+                    </View>
+                  </View>
+                ))}
+              </View>
+            )}
+
+            {/* Grammar patterns */}
+            {Array.isArray(summary.grammarPatterns) && summary.grammarPatterns.length > 0 && (
               <View style={styles.feedbackSection}>
                 <Text style={styles.feedbackLabel}>Grammar</Text>
-                {summary.grammarFeedback.map((item, i) => (
-                  <Text key={i} style={styles.feedbackItem}>{'\u2022'} {item}</Text>
+                {summary.grammarPatterns.map((g, i) => (
+                  <View key={i} style={styles.vocabRow}>
+                    {g.usedCorrectly ? (
+                      <CheckCircle size={14} color={colors.correctText} />
+                    ) : (
+                      <XCircle size={14} color={colors.destructive} />
+                    )}
+                    <View style={styles.vocabInfo}>
+                      <Text style={styles.vocabWord}>{g.pattern}</Text>
+                      {g.example ? (
+                        <Text style={styles.vocabContext}>{g.example}</Text>
+                      ) : null}
+                    </View>
+                  </View>
                 ))}
               </View>
             )}
@@ -56,7 +149,7 @@ const TalkSummary: React.FC<TalkSummaryProps> = ({ summary, onDone }) => {
         <TouchableOpacity style={styles.doneButton} onPress={onDone}>
           <Text style={styles.doneButtonText}>Done</Text>
         </TouchableOpacity>
-      </View>
+      </ScrollView>
     </SafeAreaView>
   );
 };
@@ -66,11 +159,10 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: colors.background,
   },
-  summaryContainer: {
-    flex: 1,
+  scrollContent: {
     padding: 32,
     alignItems: 'center',
-    justifyContent: 'center',
+    paddingBottom: 48,
   },
   summaryIconContainer: {
     marginBottom: 16,
@@ -110,12 +202,91 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '600',
     color: colors.muted,
-    marginBottom: 6,
+    marginBottom: 8,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
   },
-  feedbackItem: {
+  feedbackRow: {
+    marginBottom: 8,
+  },
+  feedbackBadge: {
+    fontSize: 11,
+    fontWeight: '600',
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 4,
+    alignSelf: 'flex-start',
+    overflow: 'hidden',
+    marginBottom: 2,
+  },
+  feedbackPositive: {
+    backgroundColor: '#DCFCE7',
+    color: '#166534',
+  },
+  feedbackNegative: {
+    backgroundColor: '#FEE2E2',
+    color: '#991B1B',
+  },
+  feedbackNeutral: {
+    backgroundColor: '#F3F4F6',
+    color: '#374151',
+  },
+  feedbackMessage: {
     fontSize: 14,
     color: colors.secondary,
-    lineHeight: 22,
+    lineHeight: 20,
+  },
+  sentenceCard: {
+    backgroundColor: colors.white,
+    borderRadius: 10,
+    padding: 12,
+    marginBottom: 8,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  sentenceHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  sentenceOriginal: {
+    fontSize: 15,
+    color: colors.foreground,
+    flex: 1,
+    fontWeight: '500',
+  },
+  sentenceCorrected: {
+    fontSize: 13,
+    color: colors.primary,
+    marginTop: 4,
+    marginLeft: 24,
+  },
+  sentenceTranslation: {
+    fontSize: 13,
+    color: colors.muted,
+    marginTop: 2,
+    marginLeft: 24,
+    fontStyle: 'italic',
+  },
+  vocabRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 8,
+    marginBottom: 6,
+    paddingTop: 2,
+  },
+  vocabInfo: {
+    flex: 1,
+  },
+  vocabWord: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: colors.foreground,
+  },
+  vocabContext: {
+    fontSize: 13,
+    color: colors.muted,
+    marginTop: 1,
   },
   metaText: {
     fontSize: 13,

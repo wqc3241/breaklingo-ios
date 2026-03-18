@@ -15,6 +15,7 @@ import {
   MicOff,
   Volume2,
   ArrowLeft,
+  X,
 } from 'lucide-react-native';
 import { colors } from '../../lib/theme';
 import type { AppProject, ConversationMessage } from '../../lib/types';
@@ -24,6 +25,7 @@ interface TalkConversationProps {
   messages: ConversationMessage[];
   state: string;
   isListening: boolean;
+  isSpeechActive: boolean;
   isTranscribing: boolean;
   finalTranscript: string;
   onVoiceInput: () => void;
@@ -36,6 +38,7 @@ const TalkConversation: React.FC<TalkConversationProps> = ({
   messages,
   state,
   isListening,
+  isSpeechActive,
   isTranscribing,
   finalTranscript,
   onVoiceInput,
@@ -46,7 +49,7 @@ const TalkConversation: React.FC<TalkConversationProps> = ({
   const pulseAnim = useRef(new Animated.Value(1)).current;
 
   useEffect(() => {
-    if (isListening) {
+    if (isSpeechActive) {
       const pulse = Animated.loop(
         Animated.sequence([
           Animated.timing(pulseAnim, { toValue: 1.15, duration: 800, easing: Easing.inOut(Easing.ease), useNativeDriver: true }),
@@ -58,13 +61,14 @@ const TalkConversation: React.FC<TalkConversationProps> = ({
     } else {
       pulseAnim.setValue(1);
     }
-  }, [isListening, pulseAnim]);
+  }, [isSpeechActive, pulseAnim]);
 
   useEffect(() => {
     if (messages.length > 0) {
-      setTimeout(() => {
+      const timer = setTimeout(() => {
         flatListRef.current?.scrollToEnd({ animated: true });
       }, 100);
+      return () => clearTimeout(timer);
     }
   }, [messages]);
 
@@ -85,7 +89,7 @@ const TalkConversation: React.FC<TalkConversationProps> = ({
       <View style={styles.flex}>
         {/* Conversation header */}
         <View style={styles.conversationHeader}>
-          <TouchableOpacity onPress={onBack} style={styles.backButton}>
+          <TouchableOpacity onPress={onBack} style={styles.backButton} accessibilityLabel="Go back">
             <ArrowLeft size={18} color={colors.primary} />
           </TouchableOpacity>
           <View style={styles.conversationHeaderInfo}>
@@ -96,8 +100,13 @@ const TalkConversation: React.FC<TalkConversationProps> = ({
               {selectedProject?.detectedLanguage || ''}
             </Text>
           </View>
-          <TouchableOpacity style={styles.endButton} onPress={onStop}>
-            <Text style={styles.endButtonText}>End</Text>
+          <TouchableOpacity
+            style={styles.endButton}
+            onPress={onStop}
+            hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+            accessibilityLabel="End conversation"
+          >
+            <X size={20} color={colors.muted} />
           </TouchableOpacity>
         </View>
 
@@ -141,6 +150,7 @@ const TalkConversation: React.FC<TalkConversationProps> = ({
               onPress={onVoiceInput}
               disabled={micDisabled}
               activeOpacity={0.7}
+              accessibilityLabel={isListening ? 'Stop recording' : 'Start recording'}
             >
               {isTranscribing ? (
                 <ActivityIndicator size="large" color={colors.white} />
@@ -182,10 +192,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 12,
-    paddingVertical: 10,
-    backgroundColor: colors.white,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border,
+    paddingVertical: 8,
   },
   conversationHeaderInfo: {
     flex: 1,
@@ -202,16 +209,7 @@ const styles = StyleSheet.create({
     marginTop: 1,
   },
   endButton: {
-    paddingHorizontal: 14,
-    paddingVertical: 7,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: colors.recording,
-  },
-  endButtonText: {
-    color: colors.recording,
-    fontSize: 14,
-    fontWeight: '600',
+    padding: 4,
   },
   messagesContent: {
     padding: 16,

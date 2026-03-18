@@ -1,7 +1,9 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Alert } from 'react-native';
-import { useProjectContext } from '../context/ProjectContext';
+import { useAuth } from '../hooks/useAuth';
+import { useProjectList } from '../hooks/useProjectList';
 import { useConversation } from '../hooks/useConversation';
+import { useStopAudioOnBlur } from '../hooks/useStopAudioOnBlur';
 import { useStreak } from '../hooks/useStreak';
 import { useExperience } from '../hooks/useExperience';
 import { loadSessions, deleteSession } from '../lib/conversationStorage';
@@ -16,15 +18,21 @@ type TalkView = 'projectSelect' | 'conversation' | 'summary' | 'history';
 
 const TalkScreen: React.FC = () => {
   const [view, setView] = useState<TalkView>('projectSelect');
-  const [projects, setProjects] = useState<AppProject[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedProject, setSelectedProject] = useState<AppProject | null>(null);
   const [pastSessions, setPastSessions] = useState<ConversationSession[]>([]);
   const [expandedSession, setExpandedSession] = useState<string | null>(null);
 
-  const { fetchProjects } = useProjectContext();
+  const { user } = useAuth();
+  const {
+    projects,
+    isLoading,
+    isLoadingMore,
+    hasMore,
+    fetchProjects,
+    fetchMore,
+  } = useProjectList(user?.id, { completedWithVocabOnly: true });
   const { markDayComplete } = useStreak();
   const { addXP } = useExperience();
   const {
@@ -38,25 +46,30 @@ const TalkScreen: React.FC = () => {
     handleVoiceInput,
     stopConversation,
     resetConversation,
+    setAutoListen,
+    isSpeechActive,
   } = useConversation();
 
+  const handleTalkBlur = useCallback(() => {
+    setAutoListen(false);
+  }, [setAutoListen]);
+  useStopAudioOnBlur({ onBlur: handleTalkBlur });
+
   useEffect(() => {
-    loadProjectList();
+    fetchProjects();
     loadHistory();
-  }, []);
+  }, [fetchProjects]);
 
-  const loadProjectList = async () => {
-    setIsLoading(true);
-    const data = await fetchProjects();
-    setProjects(data.filter((p) => p.status === 'completed' && (p.vocabulary?.length || 0) > 0));
-    setIsLoading(false);
-    setIsRefreshing(false);
-  };
+  // Re-fetch when search query changes
+  useEffect(() => {
+    fetchProjects(searchQuery || undefined);
+  }, [searchQuery]);
 
-  const onRefresh = () => {
+  const onRefresh = useCallback(async () => {
     setIsRefreshing(true);
-    loadProjectList();
-  };
+    await fetchProjects(searchQuery || undefined);
+    setIsRefreshing(false);
+  }, [fetchProjects, searchQuery]);
 
   const loadHistory = async () => {
     const sessions = await loadSessions();
@@ -127,10 +140,12 @@ const TalkScreen: React.FC = () => {
           projects={projects}
           pastSessions={pastSessions}
           isLoading={isLoading}
+          isLoadingMore={isLoadingMore}
           isRefreshing={isRefreshing}
           searchQuery={searchQuery}
           onSearchChange={setSearchQuery}
           onRefresh={onRefresh}
+          onFetchMore={fetchMore}
           onProjectSelect={handleProjectSelect}
           onShowHistory={() => setView('history')}
         />
@@ -162,6 +177,7 @@ const TalkScreen: React.FC = () => {
           messages={messages}
           state={state}
           isListening={isListening}
+          isSpeechActive={isSpeechActive}
           isTranscribing={isTranscribing}
           finalTranscript={finalTranscript}
           onVoiceInput={handleVoiceInput}

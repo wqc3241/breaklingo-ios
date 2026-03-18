@@ -13,6 +13,7 @@ import { MessageCircle, Volume2, FileText, RefreshCw } from 'lucide-react-native
 import EmptyState from '../components/common/EmptyState';
 import { useProjectContext } from '../context/ProjectContext';
 import { useTextToSpeech } from '../hooks/useTextToSpeech';
+import { useStopAudioOnBlur } from '../hooks/useStopAudioOnBlur';
 import { supabase } from '../lib/supabase';
 import { getDifficultyColor } from '../lib/theme';
 import type { PracticeSentence } from '../lib/types';
@@ -25,6 +26,9 @@ const PracticeScreen: React.FC = () => {
   const [isGenerating, setIsGenerating] = useState(false);
   const { currentProject, setCurrentProject, autoSaveProject } = useProjectContext();
   const { speak, isPlaying, currentText } = useTextToSpeech();
+
+  // Stop TTS audio when navigating away from this screen
+  useStopAudioOnBlur();
 
   useEffect(() => {
     if (currentProject?.practiceSentences) {
@@ -97,12 +101,15 @@ const PracticeScreen: React.FC = () => {
       <View style={styles.sentenceCard}>
         <View style={styles.sentenceRow}>
           <TouchableOpacity
-            style={styles.audioButton}
+            style={[styles.audioButton, isCurrentlyPlaying && styles.audioButtonActive]}
             onPress={() => speak(item.text)}
+            accessibilityLabel={`Play sentence: ${item.text}`}
           >
-            <View style={isCurrentlyPlaying ? styles.audioIconPlaying : undefined}>
+            {isCurrentlyPlaying ? (
+              <ActivityIndicator size="small" color="#fff" />
+            ) : (
               <Volume2 size={16} color="#E8550C" />
-            </View>
+            )}
           </TouchableOpacity>
           <View style={styles.sentenceContent}>
             <Text style={styles.sentenceText}>{item.text}</Text>
@@ -276,13 +283,16 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   audioButton: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
     backgroundColor: '#F5F5F5',
     alignItems: 'center',
     justifyContent: 'center',
     marginTop: 2,
+  },
+  audioButtonActive: {
+    backgroundColor: '#E8550C',
   },
   audioIcon: {
     fontSize: 16,

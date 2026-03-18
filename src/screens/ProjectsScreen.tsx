@@ -5,7 +5,6 @@ import {
   StyleSheet,
   FlatList,
   TouchableOpacity,
-  TextInput,
   ActivityIndicator,
   Alert,
   RefreshControl,
@@ -14,35 +13,46 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { FolderOpen, Star, Search, Clock } from 'lucide-react-native';
 import { useNavigation } from '@react-navigation/native';
 import EmptyState from '../components/common/EmptyState';
+import SearchBar from '../components/common/SearchBar';
 import LoadingState from '../components/common/LoadingState';
 import { useProjectContext } from '../context/ProjectContext';
+import { useProjectList } from '../hooks/useProjectList';
+import { useAuth } from '../hooks/useAuth';
 import { formatRelativeDate } from '../lib/dateUtils';
 import { colors } from '../lib/theme';
 import type { AppProject } from '../lib/types';
 
 const ProjectsScreen: React.FC = () => {
-  const [projects, setProjects] = useState<AppProject[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const navigation = useNavigation<any>();
-  const { setCurrentProject, fetchProjects, deleteProject, toggleFavorite } = useProjectContext();
-
-  const loadProjects = useCallback(async () => {
-    const data = await fetchProjects();
-    setProjects(data);
-    setIsLoading(false);
-    setIsRefreshing(false);
-  }, [fetchProjects]);
+  const { user } = useAuth();
+  const { setCurrentProject, deleteProject, toggleFavorite } = useProjectContext();
+  const {
+    projects,
+    isLoading,
+    isLoadingMore,
+    hasMore,
+    fetchProjects,
+    fetchMore,
+    updateProjectLocally,
+    removeProjectLocally,
+  } = useProjectList(user?.id);
 
   useEffect(() => {
-    loadProjects();
-  }, [loadProjects]);
+    fetchProjects();
+  }, [fetchProjects]);
 
-  const onRefresh = () => {
+  // Re-fetch when search query changes (debounced via server-side ilike)
+  useEffect(() => {
+    fetchProjects(searchQuery || undefined);
+  }, [searchQuery]);
+
+  const onRefresh = useCallback(async () => {
     setIsRefreshing(true);
-    loadProjects();
-  };
+    await fetchProjects(searchQuery || undefined);
+    setIsRefreshing(false);
+  }, [fetchProjects, searchQuery]);
 
   const handleProjectPress = (project: AppProject) => {
     setCurrentProject(project);
@@ -61,7 +71,7 @@ const ProjectsScreen: React.FC = () => {
           onPress: async () => {
             try {
               await deleteProject(project.id);
-              setProjects((prev) => prev.filter((p) => p.id !== project.id));
+              removeProjectLocally(project.id);
             } catch {
               Alert.alert('Error', 'Could not delete project');
             }
@@ -74,32 +84,11 @@ const ProjectsScreen: React.FC = () => {
   const handleToggleFavorite = async (project: AppProject) => {
     try {
       await toggleFavorite(project.id);
-      setProjects((prev) =>
-        prev.map((p) =>
-          p.id === project.id ? { ...p, isFavorite: !p.isFavorite } : p
-        )
-      );
+      updateProjectLocally(project.id, { isFavorite: !project.isFavorite });
     } catch {
       Alert.alert('Error', 'Could not update favorite');
     }
   };
-
-  const filteredProjects = projects.filter(
-    (p) =>
-      !searchQuery ||
-      p.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      p.detectedLanguage.toLowerCase().includes(searchQuery.toLowerCase())
-  );
-
-  // Sort: favorites first, then by order
-  const sortedProjects = [...filteredProjects].sort((a, b) => {
-    if (a.isFavorite && !b.isFavorite) return -1;
-    if (!a.isFavorite && b.isFavorite) return 1;
-    // Secondary sort: most recently updated first
-    const aTime = a.updatedAt ? new Date(a.updatedAt).getTime() : 0;
-    const bTime = b.updatedAt ? new Date(b.updatedAt).getTime() : 0;
-    return bTime - aTime;
-  });
 
   const getStatusColor = (status?: string) => {
     switch (status) {
@@ -130,6 +119,7 @@ const ProjectsScreen: React.FC = () => {
             <TouchableOpacity
               style={styles.favoriteButton}
               onPress={() => handleToggleFavorite(item)}
+              accessibilityLabel={item.isFavorite ? 'Remove from favorites' : 'Add to favorites'}
             >
               {item.isFavorite ? (
                 <Star size={16} color="#EAB308" fill="#EAB308" />
@@ -171,18 +161,15 @@ const ProjectsScreen: React.FC = () => {
 
   return (
     <SafeAreaView style={styles.container} edges={[]}>
-      <View style={styles.searchContainer}>
-        <TextInput
-          style={styles.searchInput}
-          placeholder="Search projects..."
-          value={searchQuery}
-          onChangeText={setSearchQuery}
-        />
-      </View>
+      <SearchBar
+        value={searchQuery}
+        onChangeText={setSearchQuery}
+        placeholder="Search projects..."
+      />
 
-      {isLoading ? (
+      {isLoading && projects.length === 0 ? (
         <LoadingState />
-      ) : sortedProjects.length === 0 ? (
+      ) : projects.length === 0 ? (
         <EmptyState
           icon={searchQuery ? <Search size={36} color="#E8550C" /> : <FolderOpen size={36} color="#E8550C" />}
           title={searchQuery ? 'No matching projects' : 'No saved projects'}
@@ -192,12 +179,23 @@ const ProjectsScreen: React.FC = () => {
         />
       ) : (
         <FlatList
-          data={sortedProjects}
+          data={projects}
           keyExtractor={(item) => String(item.id)}
           renderItem={renderProject}
           contentContainerStyle={styles.listContent}
           refreshControl={
             <RefreshControl refreshing={isRefreshing} onRefresh={onRefresh} />
+          }
+          onEndReached={fetchMore}
+          onEndReachedThreshold={0.5}
+          ListFooterComponent={
+            isLoadingMore ? (
+              <ActivityIndicator
+                size="small"
+                color={colors.primary}
+                style={styles.footerLoader}
+              />
+            ) : null
           }
         />
       )}
@@ -288,6 +286,9 @@ const styles = StyleSheet.create({
   badgeText: {
     fontSize: 12,
     fontWeight: '600',
+  },
+  footerLoader: {
+    paddingVertical: 16,
   },
   loadingState: {
     flex: 1,

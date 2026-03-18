@@ -6,25 +6,18 @@ import {
   ScrollView,
   TouchableOpacity,
   FlatList,
-  ActivityIndicator,
-  Alert,
   Linking,
-  Modal,
+  ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { BookOpen, Volume2, RefreshCw, Clock, AlertTriangle, ChevronDown, XCircle } from 'lucide-react-native';
+import { BookOpen, Volume2, Clock, AlertTriangle, XCircle } from 'lucide-react-native';
 import YouTubePlayerComponent from '../components/YouTubePlayer';
 import EmptyState from '../components/common/EmptyState';
 import { useProjectContext } from '../context/ProjectContext';
-import { useVideoProcessing } from '../hooks/useVideoProcessing';
 import { useTextToSpeech } from '../hooks/useTextToSpeech';
+import { useStopAudioOnBlur } from '../hooks/useStopAudioOnBlur';
 import { colors, getDifficultyColor } from '../lib/theme';
 import type { VocabularyItem, GrammarItem } from '../lib/types';
-
-const LANGUAGES = [
-  'Japanese', 'Chinese', 'Korean', 'Spanish', 'French',
-  'German', 'Italian', 'Portuguese', 'Russian', 'Arabic', 'Hindi', 'Other',
-];
 
 const extractVideoId = (url: string): string | null => {
   const match = url.match(/(?:youtu\.be\/|v=|\/embed\/|\/v\/)([a-zA-Z0-9_-]{11})/);
@@ -35,31 +28,11 @@ type StudyTab = 'vocabulary' | 'grammar' | 'script';
 
 const StudyScreen: React.FC = () => {
   const [activeTab, setActiveTab] = useState<StudyTab>('vocabulary');
-  const [showLanguagePicker, setShowLanguagePicker] = useState(false);
   const [highlightedWords, setHighlightedWords] = useState<string[]>([]);
-  const { currentProject, setCurrentProject, autoSaveProject } = useProjectContext();
-  const { regenerateAnalysis, isProcessing, processingStep } = useVideoProcessing();
+  const { currentProject } = useProjectContext();
   const { speak, isPlaying, currentText } = useTextToSpeech();
 
-  const handleRegenerate = async () => {
-    const result = await regenerateAnalysis(currentProject);
-    if (result) {
-      setCurrentProject(result);
-      await autoSaveProject(result);
-    }
-  };
-
-  const handleLanguageChange = async (language: string) => {
-    if (!currentProject) return;
-    const updated = { ...currentProject, detectedLanguage: language };
-    setCurrentProject(updated);
-    await autoSaveProject(updated);
-    setShowLanguagePicker(false);
-    Alert.alert(
-      'Language updated',
-      `Changed to ${language}. Tap the regenerate button to re-analyze.`
-    );
-  };
+  useStopAudioOnBlur();
 
   const handleOpenVideo = () => {
     if (!currentProject?.url) return;
@@ -136,19 +109,8 @@ const StudyScreen: React.FC = () => {
             </Text>
           </View>
           <Text style={styles.statusDetail}>
-            {currentProject.errorMessage || 'An unknown error occurred. Please try again.'}
+            {currentProject.errorMessage || 'An unknown error occurred. Please try again from the Search tab.'}
           </Text>
-          <TouchableOpacity
-            style={styles.retryButton}
-            onPress={handleRegenerate}
-            disabled={isProcessing}
-          >
-            {isProcessing ? (
-              <ActivityIndicator size="small" color="#fff" />
-            ) : (
-              <Text style={styles.retryButtonText}>Try Again</Text>
-            )}
-          </TouchableOpacity>
         </View>
       </SafeAreaView>
     );
@@ -163,10 +125,15 @@ const StudyScreen: React.FC = () => {
         <View style={styles.cardHeader}>
           <View style={styles.wordRow}>
             <TouchableOpacity
-              style={styles.speakerButton}
+              style={[styles.speakerButton, isSpeaking && styles.speakerButtonActive]}
               onPress={() => speak(item.word)}
+              accessibilityLabel={`Play pronunciation for ${item.word}`}
             >
-              <Volume2 size={16} color={colors.primary} />
+              {isSpeaking ? (
+                <ActivityIndicator size="small" color={colors.white} />
+              ) : (
+                <Volume2 size={16} color={colors.primary} />
+              )}
             </TouchableOpacity>
             <View style={styles.wordInfo}>
               <Text style={styles.word}>{item.word}</Text>
@@ -208,8 +175,13 @@ const StudyScreen: React.FC = () => {
         <TouchableOpacity
           style={styles.exampleRow}
           onPress={() => speak(item.example)}
+          accessibilityLabel={`Play example: ${item.example}`}
         >
-          <Volume2 size={16} color="#E8550C" />
+          {isSpeaking ? (
+            <ActivityIndicator size="small" color="#E8550C" />
+          ) : (
+            <Volume2 size={16} color="#E8550C" />
+          )}
           <Text style={styles.example}>{item.example}</Text>
         </TouchableOpacity>
       </View>
@@ -225,80 +197,21 @@ const StudyScreen: React.FC = () => {
         <YouTubePlayerComponent videoId={videoId} onOpenExternal={handleOpenVideo} />
       )}
 
-      {/* Project Title + Language Selector + Regenerate */}
+      {/* Project Title + Language Badge */}
       <View style={styles.titleBar}>
         <View style={styles.titleLeft}>
           <Text style={styles.projectTitle} numberOfLines={1}>
             {currentProject.title}
           </Text>
-          <TouchableOpacity
-            style={[styles.badge, styles.languageBadge]}
-            onPress={() => setShowLanguagePicker(true)}
-          >
-            <Text style={[styles.badgeText, { color: '#E8550C' }]}>
-              {currentProject.detectedLanguage}
-            </Text>
-            <ChevronDown size={12} color="#E8550C" />
-          </TouchableOpacity>
-        </View>
-        <TouchableOpacity
-          style={styles.regenerateButton}
-          onPress={handleRegenerate}
-          disabled={isProcessing}
-        >
-          {isProcessing ? (
-            <ActivityIndicator size="small" color="#E8550C" />
-          ) : (
-            <RefreshCw size={18} color="#E8550C" />
+          {currentProject.detectedLanguage && (
+            <View style={[styles.badge, styles.languageBadge]}>
+              <Text style={[styles.badgeText, { color: '#E8550C' }]}>
+                {currentProject.detectedLanguage}
+              </Text>
+            </View>
           )}
-        </TouchableOpacity>
-      </View>
-
-      {/* Language Picker Modal */}
-      <Modal
-        visible={showLanguagePicker}
-        transparent
-        animationType="fade"
-        onRequestClose={() => setShowLanguagePicker(false)}
-      >
-        <TouchableOpacity
-          style={styles.modalOverlay}
-          activeOpacity={1}
-          onPress={() => setShowLanguagePicker(false)}
-        >
-          <View style={styles.languagePickerContainer}>
-            <Text style={styles.languagePickerTitle}>Select Language</Text>
-            <ScrollView style={styles.languageList}>
-              {LANGUAGES.map((lang) => (
-                <TouchableOpacity
-                  key={lang}
-                  style={[
-                    styles.languageOption,
-                    currentProject.detectedLanguage === lang && styles.languageOptionActive,
-                  ]}
-                  onPress={() => handleLanguageChange(lang)}
-                >
-                  <Text
-                    style={[
-                      styles.languageOptionText,
-                      currentProject.detectedLanguage === lang && styles.languageOptionTextActive,
-                    ]}
-                  >
-                    {lang}
-                  </Text>
-                </TouchableOpacity>
-              ))}
-            </ScrollView>
-          </View>
-        </TouchableOpacity>
-      </Modal>
-
-      {isProcessing && processingStep ? (
-        <View style={styles.processingBar}>
-          <ActivityIndicator size="small" color="#E8550C" />
-          <Text style={styles.processingText}>{processingStep}</Text>
         </View>
-      ) : null}
+      </View>
 
       {/* Segment Control */}
       <View style={styles.segmentContainer}>
@@ -339,7 +252,7 @@ const StudyScreen: React.FC = () => {
               <BookOpen size={36} color="#A1A1A1" />
               <Text style={styles.emptyListTitle}>No vocabulary items</Text>
               <Text style={styles.emptyListText}>
-                Tap the regenerate button to analyze the video for vocabulary
+                Try processing the video again from the Search tab
               </Text>
             </View>
           }
@@ -357,7 +270,7 @@ const StudyScreen: React.FC = () => {
               <BookOpen size={36} color="#A1A1A1" />
               <Text style={styles.emptyListTitle}>No grammar items</Text>
               <Text style={styles.emptyListText}>
-                Tap the regenerate button to analyze the video for grammar patterns
+                Try processing the video again from the Search tab
               </Text>
             </View>
           }
@@ -444,62 +357,8 @@ const styles = StyleSheet.create({
     color: '#525252',
     lineHeight: 20,
   },
-  retryButton: {
-    marginTop: 16,
-    backgroundColor: '#E8550C',
-    paddingVertical: 12,
-    borderRadius: 10,
-    alignItems: 'center',
-  },
-  retryButtonText: {
-    color: '#fff',
-    fontSize: 15,
-    fontWeight: '600',
-  },
   languageBadge: {
     backgroundColor: '#FFF5EA',
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-  },
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.4)',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  languagePickerContainer: {
-    backgroundColor: '#fff',
-    borderRadius: 16,
-    width: '80%',
-    maxHeight: 400,
-    padding: 16,
-  },
-  languagePickerTitle: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: '#171717',
-    marginBottom: 12,
-    textAlign: 'center',
-  },
-  languageList: {
-    maxHeight: 340,
-  },
-  languageOption: {
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-    borderRadius: 8,
-  },
-  languageOptionActive: {
-    backgroundColor: '#FFF5EA',
-  },
-  languageOptionText: {
-    fontSize: 16,
-    color: '#525252',
-  },
-  languageOptionTextActive: {
-    color: '#E8550C',
-    fontWeight: '600',
   },
   titleBar: {
     flexDirection: 'row',
@@ -512,7 +371,6 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     flex: 1,
-    marginRight: 8,
     gap: 8,
   },
   projectTitle: {
@@ -520,32 +378,6 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     flex: 1,
     color: '#000',
-  },
-  regenerateButton: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: '#FFF5EA',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  regenerateText: {
-    fontSize: 18,
-    color: '#E8550C',
-  },
-  processingBar: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    marginHorizontal: 16,
-    marginBottom: 8,
-    backgroundColor: '#FFF5EA',
-    borderRadius: 8,
-    padding: 8,
-  },
-  processingText: {
-    fontSize: 13,
-    color: '#E8550C',
   },
   segmentContainer: {
     flexDirection: 'row',
@@ -605,12 +437,15 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   speakerButton: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
     backgroundColor: '#F5F5F5',
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  speakerButtonActive: {
+    backgroundColor: colors.primary,
   },
   speakerIcon: {
     fontSize: 16,

@@ -12,7 +12,7 @@ import {
   Keyboard,
   Dimensions,
 } from 'react-native';
-import { Search, Clock, X, BookOpen, Sparkles } from 'lucide-react-native';
+import { Search, Clock, X, BookOpen, Sparkles, Play } from 'lucide-react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import { useVideoProcessing } from '../hooks/useVideoProcessing';
@@ -35,6 +35,7 @@ const InputScreen: React.FC = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedRecLang, setSelectedRecLang] = useState('Japanese');
   const [showHistory, setShowHistory] = useState(false);
+  const [failedThumbnails, setFailedThumbnails] = useState<Set<string>>(new Set());
   const navigation = useNavigation<any>();
 
   const { user } = useAuth();
@@ -145,6 +146,33 @@ const InputScreen: React.FC = () => {
     }
   };
 
+  const getThumbnailUrl = (videoId: string, thumbnailUrl?: string): string => {
+    return thumbnailUrl || `https://img.youtube.com/vi/${videoId}/hqdefault.jpg`;
+  };
+
+  const handleThumbnailError = (videoId: string) => {
+    setFailedThumbnails(prev => new Set(prev).add(videoId));
+  };
+
+  const renderThumbnail = (videoId: string, thumbnailUrl?: string) => {
+    const uri = getThumbnailUrl(videoId, thumbnailUrl);
+    if (failedThumbnails.has(videoId) || !uri) {
+      return (
+        <View style={[styles.thumbnailGrid, styles.thumbnailPlaceholder]}>
+          <Play size={28} color="#A1A1A1" />
+        </View>
+      );
+    }
+    return (
+      <Image
+        source={{ uri }}
+        style={styles.thumbnailGrid}
+        resizeMode="cover"
+        onError={() => handleThumbnailError(videoId)}
+      />
+    );
+  };
+
   const recommendedByLanguage = getRecommendationsByLanguage();
   const recLanguages = Object.keys(recommendedByLanguage);
 
@@ -155,11 +183,7 @@ const InputScreen: React.FC = () => {
       onPress={() => handleVideoSelect(item.videoId)}
       disabled={isProcessing}
     >
-      <Image
-        source={{ uri: item.thumbnailUrl }}
-        style={styles.thumbnailGrid}
-        resizeMode="cover"
-      />
+      {renderThumbnail(item.videoId, item.thumbnailUrl)}
       <View style={styles.videoInfoGrid}>
         <Text style={styles.videoTitleGrid} numberOfLines={2}>{item.title}</Text>
         <Text style={styles.videoChannelGrid} numberOfLines={1}>{item.channelTitle}</Text>
@@ -174,11 +198,7 @@ const InputScreen: React.FC = () => {
       onPress={() => handleVideoSelect(item.videoId, item.language)}
       disabled={isProcessing}
     >
-      <Image
-        source={{ uri: item.thumbnailUrl }}
-        style={styles.thumbnailGrid}
-        resizeMode="cover"
-      />
+      {renderThumbnail(item.videoId, item.thumbnailUrl)}
       <View style={styles.videoInfoGrid}>
         <Text style={styles.videoTitleGrid} numberOfLines={2}>{item.title}</Text>
         <Text style={styles.videoChannelGrid} numberOfLines={1}>{item.channelTitle}</Text>
@@ -544,6 +564,10 @@ const styles = StyleSheet.create({
     width: '100%',
     height: CARD_WIDTH * 0.6,
     backgroundColor: '#D4D4D4',
+  },
+  thumbnailPlaceholder: {
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   videoInfoGrid: {
     padding: 8,
