@@ -282,3 +282,13 @@ global.fetch = jest.fn(() =>
 global.__mockSupabaseAuth = mockSupabaseAuth;
 global.__mockSupabaseFrom = mockSupabaseFrom;
 global.__mockSupabaseFunctions = mockSupabaseFunctions;
+
+// Mock AIConsentContext — default to consented for all tests
+jest.mock('./src/context/AIConsentContext', () => ({
+  useAIConsentContext: () => ({
+    hasConsented: true,
+    isLoading: false,
+    requireConsent: jest.fn(() => true),
+  }),
+  AIConsentProvider: ({ children }) => children,
+}));

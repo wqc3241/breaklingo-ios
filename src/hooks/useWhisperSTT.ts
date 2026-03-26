@@ -1,6 +1,7 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
 import { Alert, NativeModules, NativeEventEmitter } from 'react-native';
 import { supabase, SUPABASE_URL } from '../lib/supabase';
+import { useAIConsentContext } from '../context/AIConsentContext';
 
 const { AudioRecorderModule } = NativeModules;
 
@@ -17,6 +18,7 @@ export const useWhisperSTT = () => {
   const [isTranscribing, setIsTranscribing] = useState(false);
   const isListeningRef = useRef(false);
   const onSilenceCallbackRef = useRef<(() => void) | null>(null);
+  const { requireConsent } = useAIConsentContext();
 
   // Keep ref in sync
   isListeningRef.current = isListening;
@@ -53,6 +55,8 @@ export const useWhisperSTT = () => {
       const uri = await AudioRecorderModule.stopRecording();
 
       if (!uri) return '';
+
+      if (!requireConsent()) return '';
 
       setIsTranscribing(true);
 

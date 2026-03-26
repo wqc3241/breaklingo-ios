@@ -15,6 +15,7 @@ import { FeedbackDialog } from '../components/common/FeedbackDialog';
 import { AppRatingPrompt } from '../components/common/AppRatingPrompt';
 import StatsHeader from '../components/common/StatsHeader';
 import { useAppRating } from '../hooks/useAppRating';
+import { AIConsentProvider } from '../context/AIConsentContext';
 import { colors } from '../lib/theme';
 
 const ProfileContext = createContext<{ toggle: () => void }>({ toggle: () => {} });
@@ -131,6 +132,7 @@ export const MainTabs: React.FC = () => {
   }, []);
 
   return (
+    <AIConsentProvider>
     <ProfileContext.Provider value={{ toggle: toggleProfileMenu }}>
       <View style={styles.root}>
         <Tab.Navigator
@@ -240,22 +242,21 @@ export const MainTabs: React.FC = () => {
                 style={styles.menuItem}
                 onPress={() => {
                   closeProfileMenu();
+                  handleDeleteAccount();
+                }}
+              >
+                <Trash2 size={20} color={colors.foreground} />
+                <Text style={styles.menuText}>Delete Account</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.menuItem}
+                onPress={() => {
+                  closeProfileMenu();
                   handleLogout();
                 }}
               >
                 <LogOut size={20} color={colors.destructive} />
                 <Text style={[styles.menuText, { color: colors.destructive }]}>Log Out</Text>
-              </TouchableOpacity>
-              <View style={styles.menuDivider} />
-              <TouchableOpacity
-                style={styles.menuItem}
-                onPress={() => {
-                  closeProfileMenu();
-                  handleDeleteAccount();
-                }}
-              >
-                <Trash2 size={20} color={colors.destructive} />
-                <Text style={[styles.menuText, { color: colors.destructive }]}>Delete Account</Text>
               </TouchableOpacity>
             </View>
           </>
@@ -273,6 +274,7 @@ export const MainTabs: React.FC = () => {
         />
       </View>
     </ProfileContext.Provider>
+    </AIConsentProvider>
   );
 };
 

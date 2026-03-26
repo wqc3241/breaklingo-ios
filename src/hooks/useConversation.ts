@@ -3,6 +3,7 @@ import { Alert } from 'react-native';
 import { supabase } from '../lib/supabase';
 import { useTextToSpeech } from './useTextToSpeech';
 import { useWhisperSTT } from './useWhisperSTT';
+import { useAIConsentContext } from '../context/AIConsentContext';
 import { isStopPhrase } from '../lib/languageUtils';
 import { saveSession } from '../lib/conversationStorage';
 import { convertMessagesToEdgeFormat } from '../lib/conversationUtils';
@@ -27,6 +28,7 @@ export const useConversation = () => {
   const messagesRef = useRef<ConversationMessage[]>([]);
   // Keep messagesRef in sync with messages state to avoid stale closures
   messagesRef.current = messages;
+  const { requireConsent } = useAIConsentContext();
 
   const autoListenEnabledRef = useRef(true);
 
@@ -53,6 +55,7 @@ export const useConversation = () => {
   }, []);
 
   const startConversation = useCallback(async (project: AppProject) => {
+    if (!requireConsent()) return;
     projectRef.current = project;
     startTimeRef.current = Date.now();
     const sessionId = `conv-${Date.now()}`;

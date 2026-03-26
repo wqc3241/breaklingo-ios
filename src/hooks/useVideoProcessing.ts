@@ -1,12 +1,14 @@
 import { useState, useRef, useCallback } from 'react';
 import { Alert } from 'react-native';
 import { supabase } from '../lib/supabase';
+import { useAIConsentContext } from '../context/AIConsentContext';
 import type { AppProject, GrammarItem, PracticeSentence, VocabularyItem } from '../lib/types';
 
 export const useVideoProcessing = () => {
   const [isProcessing, setIsProcessing] = useState(false);
   const [processingStep, setProcessingStep] = useState('');
   const pollingIntervalsRef = useRef<Map<string, ReturnType<typeof setInterval>>>(new Map());
+  const { requireConsent } = useAIConsentContext();
 
   const extractVideoId = (url: string) => {
     const match = url.match(/(?:youtube\.com\/watch\?v=|youtu\.be\/)([^&\n?#]+)/);
@@ -218,6 +220,9 @@ export const useVideoProcessing = () => {
     userId?: string,
     onProjectUpdate?: (project: AppProject) => void
   ): Promise<AppProject> => {
+    if (!requireConsent()) {
+      throw new Error('AI_CONSENT_REQUIRED');
+    }
     setIsProcessing(true);
     setProcessingStep('Extracting transcript...');
 
