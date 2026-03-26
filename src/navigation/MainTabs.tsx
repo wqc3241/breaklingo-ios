@@ -2,7 +2,7 @@ import React, { useState, useRef, useContext, createContext, useCallback } from 
 import { View, Text, TouchableOpacity, Pressable, StyleSheet } from 'react-native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
-import { Search, GraduationCap, Mic, Ellipsis, BookOpen, MessageCircle, FolderOpen, CircleUserRound, LogOut, MessageSquare } from 'lucide-react-native';
+import { Search, GraduationCap, Mic, Ellipsis, BookOpen, MessageCircle, FolderOpen, CircleUserRound, LogOut, MessageSquare, Trash2 } from 'lucide-react-native';
 import InputScreen from '../screens/InputScreen';
 import StudyScreen from '../screens/StudyScreen';
 import PracticeScreen from '../screens/PracticeScreen';
@@ -110,7 +110,7 @@ export const MainTabs: React.FC = () => {
   const [showProfileMenu, setShowProfileMenu] = useState(false);
   const [showFeedback, setShowFeedback] = useState(false);
   const navRef = useRef<any>(null);
-  const { user, handleLogout } = useAuth();
+  const { user, handleLogout, handleDeleteAccount } = useAuth();
   const { showRating, onRate, onDismiss } = useAppRating();
 
   const closeMenu = () => setShowMoreMenu(false);
@@ -245,6 +245,17 @@ export const MainTabs: React.FC = () => {
               >
                 <LogOut size={20} color={colors.destructive} />
                 <Text style={[styles.menuText, { color: colors.destructive }]}>Log Out</Text>
+              </TouchableOpacity>
+              <View style={styles.menuDivider} />
+              <TouchableOpacity
+                style={styles.menuItem}
+                onPress={() => {
+                  closeProfileMenu();
+                  handleDeleteAccount();
+                }}
+              >
+                <Trash2 size={20} color={colors.destructive} />
+                <Text style={[styles.menuText, { color: colors.destructive }]}>Delete Account</Text>
               </TouchableOpacity>
             </View>
           </>

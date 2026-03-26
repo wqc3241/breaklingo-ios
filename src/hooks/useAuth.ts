@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
-import { Linking } from 'react-native';
+import { Alert, Linking } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { supabase } from '../lib/supabase';
 import { DEV_TEST_MODE, TEST_ACCOUNT, APP_SCHEME } from '../lib/constants';
 import type { User, Session } from '@supabase/supabase-js';
@@ -259,6 +260,62 @@ export const useAuth = () => {
     setSession(null);
   }, []);
 
+  const handleDeleteAccount = useCallback(async () => {
+    return new Promise<void>((resolve, reject) => {
+      Alert.alert(
+        'Delete Account',
+        'This will permanently delete your account and all your data (projects, vocabulary, quiz scores, conversation history). This action cannot be undone.',
+        [
+          { text: 'Cancel', style: 'cancel', onPress: () => resolve() },
+          {
+            text: 'Delete My Account',
+            style: 'destructive',
+            onPress: async () => {
+              try {
+                const currentUser = user;
+                if (!currentUser) throw new Error('No user signed in');
+
+                // Delete user's projects from database
+                await supabase
+                  .from('projects')
+                  .delete()
+                  .eq('user_id', currentUser.id);
+
+                // Delete user's learning units
+                await supabase
+                  .from('learning_units')
+                  .delete()
+                  .eq('user_id', currentUser.id);
+
+                // Clear all local data
+                await AsyncStorage.clear();
+
+                // Sign out (this also invalidates the session)
+                await supabase.auth.signOut();
+
+                setUser(null);
+                setSession(null);
+
+                Alert.alert(
+                  'Account Deleted',
+                  'Your account and all associated data have been deleted.',
+                );
+                resolve();
+              } catch (error) {
+                console.error('Account deletion error:', error);
+                Alert.alert(
+                  'Deletion Failed',
+                  'Could not delete your account. Please try again or contact support.',
+                );
+                reject(error);
+              }
+            },
+          },
+        ],
+      );
+    });
+  }, [user]);
+
   return {
     user,
     session,
@@ -269,5 +326,6 @@ export const useAuth = () => {
     handleSignUp,
     handleForgotPassword,
     handleLogout,
+    handleDeleteAccount,
   };
 };
