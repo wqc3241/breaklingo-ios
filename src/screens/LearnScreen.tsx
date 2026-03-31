@@ -5,7 +5,6 @@ import {
   StyleSheet,
   FlatList,
   TouchableOpacity,
-  ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { GraduationCap, Star, Check, Lock, Trophy } from 'lucide-react-native';
@@ -23,7 +22,7 @@ import type { LearningUnit } from '../lib/types';
 const LearnScreen: React.FC = () => {
   const navigation = useNavigation<any>();
   const { user } = useAuth();
-  const { units, isLoading, isGenerating, hasMore, totalUnits, totalProjects, fetchUnits, fetchMoreUnits, cleanup } = useLearningUnits(user?.id);
+  const { units, isLoading, isGenerating, totalUnits, totalProjects, fetchUnits, cleanup } = useLearningUnits(user?.id);
   const [recentScores, setRecentScores] = useState<QuizScoreEntry[]>([]);
 
   // Refresh units and scores every time the Learn tab gains focus
@@ -233,15 +232,6 @@ const LearnScreen: React.FC = () => {
           </View>
         )}
         contentContainerStyle={styles.listContent}
-        onEndReached={() => {
-          if (hasMore && !isLoading) {
-            fetchMoreUnits();
-          }
-        }}
-        onEndReachedThreshold={0.5}
-        ListFooterComponent={hasMore ? (
-          <ActivityIndicator style={{ padding: 16 }} color={colors.primary} />
-        ) : null}
       />
     </SafeAreaView>
   );

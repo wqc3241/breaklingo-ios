@@ -29,11 +29,9 @@ jest.mock('../../src/hooks/useLearningUnits', () => ({
     units: mockUnits,
     isLoading: mockIsLoading,
     isGenerating: mockIsGenerating,
-    hasMore: false,
     totalUnits: 0,
     totalProjects: 0,
     fetchUnits: mockFetchUnits,
-    fetchMoreUnits: jest.fn(),
     cleanup: mockCleanup,
   }),
 }));

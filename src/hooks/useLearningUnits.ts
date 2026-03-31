@@ -1,34 +1,62 @@
 import { useState, useCallback, useRef } from 'react';
-import { Alert } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { supabase } from '../lib/supabase';
 import type { LearningUnit, QuizQuestion } from '../lib/types';
 import { mapDbUnitToLearningUnit, filterValidQuestions } from '../lib/types';
-
-const PAGE_SIZE = 10;
 
 // Lightweight select that excludes the heavy `questions` JSONB column
 const UNIT_LIST_COLUMNS =
   'id, project_id, user_id, unit_number, title, description, difficulty, is_completed, best_score, attempts, stars, question_count, created_at';
 
+const CACHE_KEY_PREFIX = 'breaklingo-learning-units-';
+
+const loadFromCache = async (userId: string): Promise<LearningUnit[]> => {
+  try {
+    const raw = await AsyncStorage.getItem(`${CACHE_KEY_PREFIX}${userId}`);
+    return raw ? JSON.parse(raw) : [];
+  } catch {
+    return [];
+  }
+};
+
+const saveToCache = async (userId: string, units: LearningUnit[]): Promise<void> => {
+  try {
+    await AsyncStorage.setItem(`${CACHE_KEY_PREFIX}${userId}`, JSON.stringify(units));
+  } catch {
+    // Ignore cache write failures
+  }
+};
+
 export const useLearningUnits = (userId: string | undefined) => {
   const [units, setUnits] = useState<LearningUnit[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
-  const [hasMore, setHasMore] = useState(true);
-  const [page, setPage] = useState(0);
   const [totalUnits, setTotalUnits] = useState(0);
   const [totalProjects, setTotalProjects] = useState(0);
   const pollingRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const projectTitleMapRef = useRef<Record<string, string>>({});
-  const projectIdsRef = useRef<any[]>([]);
+  const fetchingRef = useRef(false);
 
   const fetchUnits = useCallback(async () => {
     if (!userId) return;
-    setIsLoading(true);
-    setPage(0);
-    setHasMore(true);
+    // Prevent concurrent fetches (polling + focus can overlap)
+    if (fetchingRef.current) return;
+    fetchingRef.current = true;
 
     try {
+      // Show cached data instantly if we have no units displayed yet
+      if (units.length === 0) {
+        const cached = await loadFromCache(userId);
+        if (cached.length > 0) {
+          setUnits(cached);
+          setTotalUnits(cached.length);
+          // Count distinct projects from cache
+          const projectSet = new Set(cached.map((u) => String(u.projectId)));
+          setTotalProjects(projectSet.size);
+        } else {
+          setIsLoading(true);
+        }
+      }
+
       // Fetch projects
       const { data: projects, error: projError } = await supabase
         .from('projects')
@@ -39,24 +67,25 @@ export const useLearningUnits = (userId: string | undefined) => {
       if (projError) throw projError;
       if (!projects || projects.length === 0) {
         setUnits([]);
+        setTotalUnits(0);
+        setTotalProjects(0);
         setIsLoading(false);
+        saveToCache(userId, []);
+        fetchingRef.current = false;
         return;
       }
 
       const projectIds = projects.map((p: any) => p.id);
       const projectTitleMap: Record<string, string> = {};
       projects.forEach((p: any) => { projectTitleMap[p.id] = p.title; });
-      projectTitleMapRef.current = projectTitleMap;
-      projectIdsRef.current = projectIds;
       setTotalProjects(projects.length);
 
-      // Fetch learning units (first page, lightweight — no questions column)
+      // Fetch ALL learning units (lightweight — no questions column)
       const { data: dbUnits, error: unitsError } = await supabase
         .from('learning_units')
         .select(UNIT_LIST_COLUMNS)
         .in('project_id', projectIds)
-        .order('created_at', { ascending: true })
-        .range(0, PAGE_SIZE - 1);
+        .order('created_at', { ascending: true });
 
       if (unitsError) throw unitsError;
 
@@ -72,40 +101,24 @@ export const useLearningUnits = (userId: string | undefined) => {
             console.error('Failed to trigger unit generation for', project.id, e);
           }
         }
-        // Start polling
         startPolling(projectIds, projectTitleMap);
+        fetchingRef.current = false;
         return;
       }
 
-      // Show existing units immediately
+      // Map and update display
       const mapped = dbUnits.map((u: any) =>
         mapDbUnitToLearningUnit(u, projectTitleMap[u.project_id] || 'Unknown')
       );
       setUnits(mapped);
-      setHasMore(dbUnits.length >= PAGE_SIZE);
+      setTotalUnits(mapped.length);
+      saveToCache(userId, mapped);
 
-      // Check ALL projects for missing units (not just those in the first page).
-      // The paginated dbUnits may only contain units from older projects, so we
-      // query distinct project_ids across all learning_units to detect new projects
-      // that still need unit generation.
-      let projectsWithUnits: Set<string>;
-      const { data: allUnitProjects, error: coverageError } = await supabase
-        .from('learning_units')
-        .select('project_id')
-        .in('project_id', projectIds);
-
-      if (coverageError || !allUnitProjects) {
-        // Fallback to checking only first-page units
-        projectsWithUnits = new Set(dbUnits.map((u: any) => String(u.project_id)));
-        setTotalUnits(dbUnits.length);
-      } else {
-        projectsWithUnits = new Set(allUnitProjects.map((u: any) => String(u.project_id)));
-        setTotalUnits(allUnitProjects.length);
-      }
+      // Check for projects missing units and trigger generation
+      const projectsWithUnits = new Set(dbUnits.map((u: any) => String(u.project_id)));
       const projectsMissing = projects.filter((p: any) => !projectsWithUnits.has(String(p.id)));
 
       if (projectsMissing.length > 0) {
-        // Fire-and-forget: generate in background, don't block UI
         for (const project of projectsMissing) {
           supabase.functions.invoke('generate-learning-units', {
             body: { projectId: project.id },
@@ -119,44 +132,9 @@ export const useLearningUnits = (userId: string | undefined) => {
       console.error('Failed to fetch learning units:', error);
     } finally {
       setIsLoading(false);
+      fetchingRef.current = false;
     }
   }, [userId]);
-
-  const fetchMoreUnits = useCallback(async () => {
-    if (!userId || !hasMore || isLoading) return;
-    const nextPage = page + 1;
-    setIsLoading(true);
-
-    try {
-      const { data: dbUnits, error } = await supabase
-        .from('learning_units')
-        .select(UNIT_LIST_COLUMNS)
-        .in('project_id', projectIdsRef.current)
-        .order('created_at', { ascending: true })
-        .range(nextPage * PAGE_SIZE, (nextPage + 1) * PAGE_SIZE - 1);
-
-      if (error) throw error;
-
-      if (!dbUnits || dbUnits.length === 0) {
-        setHasMore(false);
-      } else {
-        const mapped = dbUnits.map((u: any) =>
-          mapDbUnitToLearningUnit(u, projectTitleMapRef.current[u.project_id] || 'Unknown')
-        );
-        setUnits((prev) => {
-          const existingIds = new Set(prev.map((u) => u.id));
-          const newUnits = mapped.filter((u) => !existingIds.has(u.id));
-          return [...prev, ...newUnits];
-        });
-        setPage(nextPage);
-        setHasMore(dbUnits.length >= PAGE_SIZE);
-      }
-    } catch (error) {
-      console.error('Failed to fetch more learning units:', error);
-    } finally {
-      setIsLoading(false);
-    }
-  }, [userId, hasMore, isLoading, page]);
 
   const fetchUnitQuestions = useCallback(async (unitId: string): Promise<QuizQuestion[]> => {
     try {
@@ -204,6 +182,8 @@ export const useLearningUnits = (userId: string | undefined) => {
             mapDbUnitToLearningUnit(u, projectTitleMap[u.project_id] || 'Unknown')
           );
           setUnits(mapped);
+          setTotalUnits(mapped.length);
+          if (userId) saveToCache(userId, mapped);
 
           // Check if all projects have units
           const projectsWithUnits = new Set(dbUnits.map((u: any) => String(u.project_id)));
@@ -220,7 +200,7 @@ export const useLearningUnits = (userId: string | undefined) => {
         console.error('Polling error:', e);
       }
     }, 5000);
-  }, []);
+  }, [userId]);
 
   const updateUnitProgress = useCallback(async (unitId: string, score: number) => {
     try {
@@ -252,8 +232,8 @@ export const useLearningUnits = (userId: string | undefined) => {
       if (error) throw error;
 
       // Update local state
-      setUnits((prev) =>
-        prev.map((u) =>
+      setUnits((prev) => {
+        const updated = prev.map((u) =>
           u.id === unitId
             ? {
                 ...u,
@@ -263,12 +243,15 @@ export const useLearningUnits = (userId: string | undefined) => {
                 attempts: u.attempts + 1,
               }
             : u
-        )
-      );
+        );
+        // Also update cache
+        if (userId) saveToCache(userId, updated);
+        return updated;
+      });
     } catch (error) {
       console.error('Failed to update unit progress:', error);
     }
-  }, []);
+  }, [userId]);
 
   const cleanup = useCallback(() => {
     if (pollingRef.current) {
@@ -281,11 +264,9 @@ export const useLearningUnits = (userId: string | undefined) => {
     units,
     isLoading,
     isGenerating,
-    hasMore,
     totalUnits,
     totalProjects,
     fetchUnits,
-    fetchMoreUnits,
     fetchUnitQuestions,
     updateUnitProgress,
     cleanup,
